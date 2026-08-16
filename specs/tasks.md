@@ -16,3 +16,8 @@ authors: ["Antigravity", "feng.liu"]
 | **T-03** | 重构 `slides/build_slide_02.py` 的 Block 5，消除 261px 惨白空白，实现饱满舒展排版 | `slides/build_slide_02.py` | `python slides/build_slide_02.py -o output/slide_02.pptx` | `[x]` |
 | **T-04** | 在 `tests/test_workspace.py` 中增加纵向弹性算子与空洞断言的单测 | `tests/test_workspace.py` | `python -m unittest tests/test_workspace.py` (14/14 通过) | `[x]` |
 | **T-05** | 回填 `specs/eval.md` 和 `specs/learnings.md`，提交至本地分支 | `specs/` | `git status` | `[x]` |
+
+## 变更记录
+| 日期 | 变更说明 | 责任人 |
+| :--- | :--- | :--- |
+| **2026-08-16** | 单元测试同步校验 | Agent/Human |

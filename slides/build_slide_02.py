@@ -282,18 +282,19 @@ def add_strategy_card_section(builder: SlideBuilder) -> None:
     )
 
     # --------------------------------------------------------------------------
-    # Action Section 1: Title Strip + Plain Text Bullet List (Directly on White Card)
-    # Balanced vertical span: y=408 to y=586
+    # Action Section 1: Floating White Action Card Container (y=396 to y=600, h=204)
     # --------------------------------------------------------------------------
-    # Title Strip 1: [508, 408, 456, 36]
-    builder.add_card(box=[508, 408, 456, 36], bg_color="#EBF4FD", border_color="transparent", radius=True)
-    # Number 1 Circle Badge (Mathematic Circle: 24x24)
-    builder.add_badge(box=[512, 414, 24, 24], text="1", bg_color="#1B5B9E", text_color="#FFFFFF", font_size=11, bold=True)
+    # White Card 1 Baseplate
+    builder.add_card(box=[506, 396, 460, 204], bg_color="#FFFFFF", border_color="#D1E4F7", border_width_pt=1.0, radius=True)
+    # Title Strip 1 inside White Card: [512, 402, 448, 38]
+    builder.add_card(box=[512, 402, 448, 38], bg_color="#EBF4FD", border_color="transparent", radius=True)
+    # Number 1 Circle Badge (Mathematic Circle: 26x26)
+    builder.add_badge(box=[518, 408, 26, 26], text="1", bg_color="#1B5B9E", text_color="#FFFFFF", font_size=11.5, bold=True)
     # Title 1 Text
-    builder.add_textbox(box=[544, 412, 410, 28], text="流量重构-突破渠道瓶颈", font_size=13.5, font_color="#0F172A", bold=True)
-    # Bullet List 1 (Directly on white surface, spacious line height & padding)
+    builder.add_textbox(box=[552, 406, 400, 30], text="流量重构-突破渠道瓶颈", font_size=13.5, font_color="#0F172A", bold=True)
+    # Bullet List 1 (Inside White Card, spacious line height & padding)
     builder.add_textbox(
-        box=[512, 456, 452, 130],
+        box=[518, 452, 436, 136],
         runs=[
             {"text": "•  阶梯式缩量: ", "size": 10.5, "bold": True, "color": "#0F172A"},
             {"text": "对低效渠道实施每周10%的预算递减机制\n\n", "size": 10.0, "color": "#475569"},
@@ -303,18 +304,19 @@ def add_strategy_card_section(builder: SlideBuilder) -> None:
     )
 
     # --------------------------------------------------------------------------
-    # Action Section 2: Title Strip + Plain Text Bullet List (Directly on White Card)
-    # Balanced vertical span: y=626 to y=804 (40px natural gap from Action 1)
+    # Action Section 2: Floating White Action Card Container (y=616 to y=820, h=204)
     # --------------------------------------------------------------------------
-    # Title Strip 2: [508, 626, 456, 36]
-    builder.add_card(box=[508, 626, 456, 36], bg_color="#EBF4FD", border_color="transparent", radius=True)
-    # Number 2 Circle Badge (Mathematic Circle: 24x24)
-    builder.add_badge(box=[512, 632, 24, 24], text="2", bg_color="#1B5B9E", text_color="#FFFFFF", font_size=11, bold=True)
+    # White Card 2 Baseplate
+    builder.add_card(box=[506, 616, 460, 204], bg_color="#FFFFFF", border_color="#D1E4F7", border_width_pt=1.0, radius=True)
+    # Title Strip 2 inside White Card: [512, 622, 448, 38]
+    builder.add_card(box=[512, 622, 448, 38], bg_color="#EBF4FD", border_color="transparent", radius=True)
+    # Number 2 Circle Badge (Mathematic Circle: 26x26)
+    builder.add_badge(box=[518, 628, 26, 26], text="2", bg_color="#1B5B9E", text_color="#FFFFFF", font_size=11.5, bold=True)
     # Title 2 Text
-    builder.add_textbox(box=[544, 630, 410, 28], text="触点再造 - 激活沉默资产", font_size=13.5, font_color="#0F172A", bold=True)
-    # Bullet List 2 (Directly on white surface, spacious line height & padding)
+    builder.add_textbox(box=[552, 626, 400, 30], text="触点再造 - 激活沉默资产", font_size=13.5, font_color="#0F172A", bold=True)
+    # Bullet List 2 (Inside White Card, spacious line height & padding)
     builder.add_textbox(
-        box=[512, 674, 452, 130],
+        box=[518, 672, 436, 136],
         runs=[
             {"text": "•  黄金72小时: ", "size": 10.5, "bold": True, "color": "#0F172A"},
             {"text": "对高价值用户推送专属权益包（含¥50无门槛券+会员体验）\n\n", "size": 10.0, "color": "#475569"},
@@ -325,19 +327,18 @@ def add_strategy_card_section(builder: SlideBuilder) -> None:
 
     # --------------------------------------------------------------------------
     # Footer Section: Blue Bottom Bar + Title Badge + 4 Keyword Pills
-    # Balanced vertical span: y=842 to y=918 (38px natural gap from Action 2)
     # --------------------------------------------------------------------------
-    # Bottom Footer Container Bar: [498, 842, 476, 76]
+    # Bottom Footer Container Bar: [498, 838, 476, 80]
     builder.add_card(
-        box=[498, 842, 476, 76],
+        box=[498, 838, 476, 80],
         bg_color="#EBF4FC",
         border_color="transparent",
         radius=True,
     )
 
-    # Bottom Title Badge: [506, 858, 144, 42]
+    # Bottom Title Badge: [506, 856, 144, 44]
     builder.add_badge(
-        box=[506, 858, 144, 42],
+        box=[506, 856, 144, 44],
         text="在存量战场挖掘增量价值",
         bg_color="#1B5B9E",
         text_color="#FFFFFF",
@@ -346,7 +347,7 @@ def add_strategy_card_section(builder: SlideBuilder) -> None:
     )
 
     # Bottom 4 Keyword Pills: using add_grid for perfectly even distribution
-    pill_boxes = builder.add_grid(box=[656, 858, 308, 42], cols=4, rows=1, gap_x=8.0)
+    pill_boxes = builder.add_grid(box=[656, 856, 308, 44], cols=4, rows=1, gap_x=8.0)
     keywords = ["渠道洗牌", "沉默唤醒", "成本攻坚", "精准刀法"]
     for idx, p_box in enumerate(pill_boxes):
         builder.add_badge(
