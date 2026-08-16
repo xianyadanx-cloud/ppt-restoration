@@ -1,0 +1,43 @@
+[
+  {
+    "name": "外层白底容器卡",
+    "box_norm": [480, 318, 494, 602],
+    "type": "solid_card"
+  },
+  {
+    "name": "顶部横幅渐变",
+    "box_norm": [484, 322, 486, 74],
+    "type": "gradient_card",
+    "gradient_direction": "horizontal"
+  },
+  {
+    "name": "行动区域统一底卡",
+    "box_norm": [488, 404, 474, 308],
+    "type": "solid_card"
+  },
+  {
+    "name": "行动1徽章",
+    "box_norm": [496, 413, 30, 30],
+    "type": "badge"
+  },
+  {
+    "name": "行动2徽章",
+    "box_norm": [496, 518, 30, 30],
+    "type": "badge"
+  },
+  {
+    "name": "底部Footer栏",
+    "box_norm": [480, 842, 494, 68],
+    "type": "solid_card"
+  },
+  {
+    "name": "蓝色实心胶囊",
+    "box_norm": [492, 856, 146, 38],
+    "type": "badge"
+  },
+  {
+    "name": "行动1标题文字",
+    "box_norm": [534, 413, 400, 32],
+    "type": "text"
+  }
+]
