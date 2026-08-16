@@ -1,6 +1,6 @@
 ---
-specId: "SPEC-FEAT-PPT-007"
-title: "验收评测矩阵 (Eval): PPT 布局几何质检引擎与基准线自愈"
+specId: "SPEC-FEAT-PPT-008"
+title: "验收评测矩阵 (Eval): PPT 还原 Skill 标准化管线工程架构"
 version: "1.0"
 status: "已通过"
 last_updated: "2026-08-16"
@@ -13,20 +13,14 @@ authors: ["Antigravity", "feng.liu"]
 
 | 用例 ID | 验收项 (Acceptance Criteria) | 预期结果 | 实测结论 |
 | :--- | :--- | :--- | :--- |
-| **EV-01** | `tools/layout_linter.py` 规则覆盖完备性 | 覆盖双栏顶底对齐、底部留白、字阶梯队、行内垂直居中与药丸网格 | **【通过】** 建立 5 大几何断言，精准拦截错位 |
-| **EV-02** | 左右主栏顶底对齐 (Baseline Alignment) | 左侧板夹与右侧大卡 `top` 偏差 $\le 2\text{px}$，`bottom` 偏差 $\le 3\text{px}$ | **【通过】** `top_delta=0.0`, `bottom_delta=0.0` 绝对锁齐 |
-| **EV-03** | 页面底部呼吸留白 (Bottom Margin) | 所有主要容器 `bottom \le 930`，保留 $\ge 70\text{px}$ 留白空间 | **【通过】** `max_bottom=920.0 <= 930.0` (留白 80px) |
-| **EV-04** | 字阶梯队与层级 (Typography Scale) | 主标题字号 $\le 30\text{pt}$，作者水印 $\le 16\text{pt}$，分割线 $\le 1.0\text{pt}$ | **【通过】** 主标题 28pt Bold，作者 14pt Bold |
-| **EV-05** | 表格行内垂直居中与药丸网格 | 进度条垂直重心与文本严格居中，底部 4 药丸在深色条带内均分分布 | **【通过】** 行内组件严格居中，药丸 `add_grid` 均分 |
-| **EV-06** | DOM 终检与自动化回归 | `layout_linter` 全通过，PICTURE 计数恒为 0，单测全部通过 | **【通过】** 12/12 单元测试全通过（耗时 0.153s） |
+| **EV-01** | `element_profiler` 形状与微观属性识别 | 准确区分正圆（Circle）与矩形（Rectangle），输出完整 JSON | **【通过】** 基于轮廓圆度指标确定性分类正圆与胶囊 |
+| **EV-02** | `spacing_grid` 0-1000 坐标与间距度量 | 准确计算栅格分割与各组件 `gap_x` / `gap_y` | **【通过】** 准确推导双栏顶底基准线与网格单元格 |
+| **EV-03** | `vector_builder` 原生矢量代码映射 | 将 Manifest 准确映射为 `SlideBuilder` 原生函数，PICTURE 恒为 0 | **【通过】** 1:1 编译输出可执行原生 Python 矢量函数 |
+| **EV-04** | `layout_auditor` 几何断言与 DOM 质检 | 覆盖双栏对齐、底部留白和字阶规则 | **【通过】** 5 大几何硬性规则毫秒级断言拦截 |
+| **EV-05** | 自动化回归测试套件验证 | `tests/test_workspace.py` 全部单元测试通过 | **【通过】** 13/13 单元测试全部通过（耗时 0.160s） |
 
 ---
 
 ## ✍️ 2. 签署与结论
 - **评测负责人**：Antigravity Agent
 - **最终结论**：✅ **全部通过，准予交付**
-
-## 变更记录
-| 日期 | 变更说明 | 责任人 |
-| :--- | :--- | :--- |
-| **2026-08-16** | 单元测试同步校验 | Agent/Human |

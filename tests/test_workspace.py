@@ -180,6 +180,33 @@ class TestPPTRestorationWorkspace(unittest.TestCase):
         self.assertTrue(res["passed"])
         self.assertEqual(len(res["errors"]), 0)
 
+    def test_skill_pipeline(self):
+        from skills.spacing_grid.grid_calculator import calculate_grid_cells, compute_two_column_baseline
+        from skills.vector_builder.code_generator import generate_python_block_code
+
+        # 1. Test Spacing & Grid Skill
+        baseline = compute_two_column_baseline(top=305.0, bottom=925.0)
+        self.assertEqual(baseline["top_baseline"], 305.0)
+        self.assertEqual(baseline["bottom_baseline"], 925.0)
+
+        cells = calculate_grid_cells(parent_box=[100, 100, 800, 200], cols=4, rows=1, gap_x=10.0)
+        self.assertEqual(len(cells), 4)
+
+        # 2. Test Vector Builder Skill
+        manifest = {
+            "block_id": 5,
+            "name": "Test Action Block",
+            "function_name": "add_test_action_section",
+            "elements": [
+                {"type": "SHAPE_CIRCLE", "box": [510, 400, 24, 24], "text": "1", "bg_color": "#1B5B9E", "text_color": "#FFFFFF", "font_size": 11, "bold": True},
+                {"type": "TEXT_PLAIN", "box": [544, 398, 410, 28], "text": "流量重构-突破渠道瓶颈", "font_size": 13, "font_color": "#0F172A", "bold": True}
+            ]
+        }
+        code = generate_python_block_code(manifest)
+        self.assertIn("def add_test_action_section", code)
+        self.assertIn("add_badge", code)
+        self.assertIn("add_textbox", code)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,46 +1,44 @@
 ---
-specId: "SPEC-FEAT-PPT-007"
-title: "需求规格说明书 (PRD): PPT 布局几何质检引擎 (Layout Linter) 与像素级基准线自愈"
+specId: "SPEC-FEAT-PPT-008"
+title: "需求规格说明书 (PRD): PPT 还原 Skill 标准化管线工程架构 (Skill Pipeline)"
 version: "1.0"
 status: "已批准"
 last_updated: "2026-08-16"
 authors: ["Antigravity", "feng.liu"]
 ---
 
-# 需求规格说明书 (PRD): PPT 布局几何质检引擎 (Layout Linter) 与像素级基准线自愈
+# 需求规格说明书 (PRD): PPT 还原 Skill 标准化管线工程架构 (Skill Pipeline)
 
-> **目标**：彻底解决自动化质检在多栏高低差、底部贴边、字号失衡、行内进度条垂直偏差等排版微观错位上的“失明”问题，建立严密的静态几何断言规则库，并彻底自愈修复 Slide 02。
+> **目标**：彻底解决还原过程中因模型概率性猜测导致的“形状看错（方块vs正圆）、色块脑补、间距漂移”等问题，将感知、度量、代码映射与质检全面 Skill 化，构建标准化的确定性工业级管线。
 
 ---
 
 ## 🎯 1. 业务价值与用户故事 (User Stories)
 
-### [US-01] 静态几何约束质检引擎 (`tools/layout_linter.py`)
-* **需求描述**：开发独立的排版 Linter 工具，直接扫描 `.pptx` 的 OpenXML DOM 树，自动断言以下硬性设计规则：
-  - **Rule 1 (双栏顶底基准线对齐)**：同行的左右主容器，`top` 偏差 $\le 2\text{px}$，`bottom` 偏差 $\le 3\text{px}$；
-  - **Rule 2 (底部安全呼吸留白)**：任何容器的 `top + height \le 930`（底部保留 $\ge 70\text{px}$ 呼吸空间）；
-  - **Rule 3 (字阶梯度合理性)**：主标题字号 $\in [26, 32]\text{pt}$，作者水印 $\le 16\text{pt}$；
-  - **Rule 4 (表格行内垂直居中)**：每行文字垂直中心线与进度条胶囊垂直中心线偏差 $\le 1.5\text{px}$；
-  - **Rule 5 (药丸阵列均匀分布)**：底部横向药丸阵列右边缘不得超出主容器右边界。
-* **验收标准**：检测到任何一项违规立即以非零状态码退出并打印具体偏差数值。
+### [US-01] 微观元素与几何特征识别 Skill (`skills/element-profiler/`)
+* **需求描述**：提供可独立运行的 Skill，输入局部切片图像，通过轮廓分析和数学度量（圆度、纵横比、K-Means 色彩、文字）输出结构化 `element_manifest.json`，严格分类形状（`SHAPE_CIRCLE`、`SHAPE_PILL`、`SHAPE_RECT_ROUNDED`、`SHAPE_RECT_SHARP`、`TEXT_PLAIN`）。
+* **验收标准**：能够将 Block 5 中的序号 `1`/`2` 准确识别为 `SHAPE_CIRCLE`，标题识别为 `TEXT_PLAIN`（无背景长条）。
 
-### [US-02] Slide 02 像素级基准线与比例全量自愈
-* **需求描述**：根据 Linter 规则彻底修正 `slides/build_slide_02.py`：
-  - 修正 Block 1：主标题调整为 28pt Bold，作者标识调整为 14pt Bold，分割线调整为 0.75pt 极细浅灰；
-  - 修正 Block 2：总览横幅高度收敛至 64px，文字行距自然舒适；
-  - 修正 Block 3：KPI 卡片 `top: 198`，外凸药丸 `top: 186`，与上方横幅保持标准 16px 留白；
-  - 修正 Block 4 & 5：左侧拟物板夹 `[32, 315, 438, 610]` 与右侧战略大卡 `[486, 315, 482, 610]` 顶底 100% 锁齐，两栏中缝 gap: 16px；
-  - 修正表格 5 行进度条在单元格内垂直居中；底部 4 药丸均分排列。
-* **验收标准**：`layout_linter.py` 全绿灯通过，DOM PICTURE=0，单元测试全部通过。
+### [US-02] 栅格与间距度量 Skill (`skills/spacing-grid/`)
+* **需求描述**：提供基于 0-1000 坐标系的栅格划分与间距计算 Skill，计算各元素绝对包围盒 `box: [L, T, W, H]`、相对间距 `gap_x`/`gap_y` 以及对齐基准线。
+* **验收标准**：输出包含精确坐标与对齐关系的布局描述工件。
+
+### [US-03] 纯矢量代码生成 Skill (`skills/vector-builder/`)
+* **需求描述**：接收 `manifest.json`，按照 1:1 确定性规则翻译为 `SlideBuilder` 原生 Python 代码（严格遵守 `PICTURE=0`）。
+* **验收标准**：根据形状类型调用对应的 `add_badge(radius=True)`、`add_card`、`add_textbox`。
+
+### [US-04] 布局几何红线质检 Skill (`skills/layout-auditor/`)
+* **需求描述**：自动化检查双栏对齐（`top_delta <= 2`）、底部留白（`max_bottom <= 930`）、字阶合规性与 DOM PICTURE 计数。
+* **验收标准**：违规项报错阻断，全达标输出绿灯结论。
 
 ---
 
 ## 🚫 2. 盲区确认表与不改清单 (Non-Goals)
 | 事项 | 裁决状态 | 裁决依据与处理方式 |
 | :--- | :--- | :--- |
-| **0-1000 坐标系** | **坚决保留** | 所有 Linter 规则与自愈脚本严格基于 0-1000 归一化坐标系。 |
-| **PICTURE 恒为 0** | **绝对强制** | 100% 保持纯原生矢量渲染。 |
-| **自动化集成** | **纳入 Gate 4** | Linter 成为 Gate 4 自动化终验的阻断式卡点。 |
+| **标准 Skill 规范** | **严格遵循** | 每个 Skill 包含标准的 `SKILL.md`（定义职责、参数、输入输出工件）和执行代码。 |
+| **0-1000 坐标系** | **坚决保留** | 所有 Skill 统一在 0-1000 归一化空间中传递数据。 |
+| **与 Orchestrator 集成** | **深度整合** | Orchestrator 负责按流水线顺次调度 4 大 Skill 算子。 |
 
 ## 9. 变更记录
 | 版本 | 变更类型 | 变更内容说明 | 评审人 |
