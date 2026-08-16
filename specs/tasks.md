@@ -16,3 +16,8 @@ authors: ["Antigravity", "feng.liu"]
 | **T-03** | 运行 `tools/layout_linter.py` 对 `output/slide_02.pptx` 进行全量规则静态检查 | `output/slide_02.pptx` | `python tools/layout_linter.py output/slide_02.pptx` (全绿灯) | `[x]` |
 | **T-04** | 扩展 `tests/test_workspace.py` 覆盖 Layout Linter 单测并验证全套套件 | `tests/test_workspace.py` | `python -m unittest tests/test_workspace.py` (12/12 通过) | `[x]` |
 | **T-05** | 回填 `specs/eval.md` 和 `specs/learnings.md`，提交至本地分支 | `specs/` | `git status` | `[x]` |
+
+## 变更记录
+| 日期 | 变更说明 | 责任人 |
+| :--- | :--- | :--- |
+| **2026-08-16** | 单元测试同步校验 | Agent/Human |
