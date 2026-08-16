@@ -1,47 +1,35 @@
 ---
-specId: "SPEC-FEAT-PPT-008"
-title: "需求规格说明书 (PRD): PPT 还原 Skill 标准化管线工程架构 (Skill Pipeline)"
+specId: "SPEC-FEAT-PPT-009"
+title: "需求规格说明书 (PRD): Skill 体系深度升级：纵向弹性均分算子与容器留白空洞质检断言"
 version: "1.0"
 status: "已批准"
 last_updated: "2026-08-16"
 authors: ["Antigravity", "feng.liu"]
 ---
 
-# 需求规格说明书 (PRD): PPT 还原 Skill 标准化管线工程架构 (Skill Pipeline)
+# 需求规格说明书 (PRD): Skill 体系深度升级：纵向弹性均分算子与容器留白空洞质检断言
 
-> **目标**：彻底解决还原过程中因模型概率性猜测导致的“形状看错（方块vs正圆）、色块脑补、间距漂移”等问题，将感知、度量、代码映射与质检全面 Skill 化，构建标准化的确定性工业级管线。
+> **目标**：通过在 `spacing_grid` 中引入确定性纵向弹性均分算子，并在 `layout_auditor` 中增加空洞断言规则，彻底消灭“模块挤压、下部留出 261px 巨大空白”的排版缺陷。
 
 ---
 
 ## 🎯 1. 业务价值与用户故事 (User Stories)
 
-### [US-01] 微观元素与几何特征识别 Skill (`skills/element-profiler/`)
-* **需求描述**：提供可独立运行的 Skill，输入局部切片图像，通过轮廓分析和数学度量（圆度、纵横比、K-Means 色彩、文字）输出结构化 `element_manifest.json`，严格分类形状（`SHAPE_CIRCLE`、`SHAPE_PILL`、`SHAPE_RECT_ROUNDED`、`SHAPE_RECT_SHARP`、`TEXT_PLAIN`）。
-* **验收标准**：能够将 Block 5 中的序号 `1`/`2` 准确识别为 `SHAPE_CIRCLE`，标题识别为 `TEXT_PLAIN`（无背景长条）。
+### [US-01] 纵向弹性均分算子 (`skills/spacing_grid/grid_calculator.py`)
+* **需求描述**：提供 `distribute_vertical_sections` 算法算子，接收父容器高度 `container_h`、顶部/底部保留高度和模块数量，自动按 `space_between` 或 `space_evenly` 计算每个 Section 的 `[top, height]` 和呼吸间隙。
+* **验收标准**：在 620px 高度、2 个模块下，准确计算出两个高约 165px 的区块并保留 40px 间隙。
 
-### [US-02] 栅格与间距度量 Skill (`skills/spacing-grid/`)
-* **需求描述**：提供基于 0-1000 坐标系的栅格划分与间距计算 Skill，计算各元素绝对包围盒 `box: [L, T, W, H]`、相对间距 `gap_x`/`gap_y` 以及对齐基准线。
-* **验收标准**：输出包含精确坐标与对齐关系的布局描述工件。
+### [US-02] 容器留白空洞与填充率质检断言 (`skills/layout_auditor/` & `tools/layout_linter.py`)
+* **需求描述**：在 Linter 中新增 `Rule 6`：
+  - 断言容器内相邻垂直模块的垂直间距 $\le 70\text{px}$（拦截如 261px 的空洞）；
+  - 断言容器内容垂直填充率 $\ge 70\%$。
+* **验收标准**：当内容严重塌陷或出现大面积空白时，Linter 准确报错 `[RULE 6: GIANT_VOID_GAP]`。
 
-### [US-03] 纯矢量代码生成 Skill (`skills/vector-builder/`)
-* **需求描述**：接收 `manifest.json`，按照 1:1 确定性规则翻译为 `SlideBuilder` 原生 Python 代码（严格遵守 `PICTURE=0`）。
-* **验收标准**：根据形状类型调用对应的 `add_badge(radius=True)`、`add_card`、`add_textbox`。
-
-### [US-04] 布局几何红线质检 Skill (`skills/layout-auditor/`)
-* **需求描述**：自动化检查双栏对齐（`top_delta <= 2`）、底部留白（`max_bottom <= 930`）、字阶合规性与 DOM PICTURE 计数。
-* **验收标准**：违规项报错阻断，全达标输出绿灯结论。
-
----
-
-## 🚫 2. 盲区确认表与不改清单 (Non-Goals)
-| 事项 | 裁决状态 | 裁决依据与处理方式 |
-| :--- | :--- | :--- |
-| **标准 Skill 规范** | **严格遵循** | 每个 Skill 包含标准的 `SKILL.md`（定义职责、参数、输入输出工件）和执行代码。 |
-| **0-1000 坐标系** | **坚决保留** | 所有 Skill 统一在 0-1000 归一化空间中传递数据。 |
-| **与 Orchestrator 集成** | **深度整合** | Orchestrator 负责按流水线顺次调度 4 大 Skill 算子。 |
+### [US-03] Block 5 空间饱满度自愈与全页回归
+* **需求描述**：应用新算子重新编排 Block 5，消除 261px 空洞，并通过 Linter 全绿灯。
+* **验收标准**：`layout_auditor` 全通过，`test_workspace.py` 全部单元测试通过。
 
 ## 9. 变更记录
 | 版本 | 变更类型 | 变更内容说明 | 评审人 |
 | :--- | :--- | :--- | :--- |
-| **2026-08-16** | 变更调优 | 单元测试同步校验 | Agent/Human |
 | **2026-08-16** | 变更调优 | 单元测试同步校验 | Agent/Human |

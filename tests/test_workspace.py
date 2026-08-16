@@ -207,6 +207,20 @@ class TestPPTRestorationWorkspace(unittest.TestCase):
         self.assertIn("add_badge", code)
         self.assertIn("add_textbox", code)
 
+    def test_vertical_flex_and_void_gap_audit(self):
+        from skills.spacing_grid.grid_calculator import distribute_vertical_sections
+        from tools.layout_linter import audit_layout
+
+        # 1. Test vertical flow calculation
+        sections = distribute_vertical_sections(container_top=305.0, container_height=620.0, count=2)
+        self.assertEqual(len(sections), 2)
+        self.assertGreater(sections[1]["top"], sections[0]["bottom"])
+
+        # 2. Test Rule 6 in Layout Linter
+        res = audit_layout("output/slide_02.pptx")
+        self.assertTrue(res["passed"])
+        self.assertTrue(any("Rule 6" in r for r in res.get("passed_rules", [])))
+
 
 if __name__ == "__main__":
     unittest.main()

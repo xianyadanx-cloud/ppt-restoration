@@ -283,67 +283,70 @@ def add_strategy_card_section(builder: SlideBuilder) -> None:
 
     # --------------------------------------------------------------------------
     # Action Section 1: Title Strip + Plain Text Bullet List (Directly on White Card)
+    # Balanced vertical span: y=408 to y=586
     # --------------------------------------------------------------------------
-    # Title Strip 1: [508, 396, 456, 32]
-    builder.add_card(box=[508, 396, 456, 32], bg_color="#EBF4FD", border_color="transparent", radius=True)
-    # Number 1 Square Badge
-    builder.add_badge(box=[512, 400, 24, 24], text="1", bg_color="#1B5B9E", text_color="#FFFFFF", font_size=11, bold=True)
+    # Title Strip 1: [508, 408, 456, 36]
+    builder.add_card(box=[508, 408, 456, 36], bg_color="#EBF4FD", border_color="transparent", radius=True)
+    # Number 1 Circle Badge (Mathematic Circle: 24x24)
+    builder.add_badge(box=[512, 414, 24, 24], text="1", bg_color="#1B5B9E", text_color="#FFFFFF", font_size=11, bold=True)
     # Title 1 Text
-    builder.add_textbox(box=[544, 398, 410, 28], text="流量重构-突破渠道瓶颈", font_size=12.5, font_color="#0F172A", bold=True)
-    # Bullet List 1 (Directly on white surface)
+    builder.add_textbox(box=[544, 412, 410, 28], text="流量重构-突破渠道瓶颈", font_size=13.5, font_color="#0F172A", bold=True)
+    # Bullet List 1 (Directly on white surface, spacious line height & padding)
     builder.add_textbox(
-        box=[512, 434, 452, 54],
+        box=[512, 456, 452, 130],
         runs=[
-            {"text": "•  阶梯式缩量: ", "size": 10.0, "bold": True, "color": "#334155"},
-            {"text": "对低效渠道实施每周10%的预算递减机制\n", "size": 10.0, "color": "#475569"},
-            {"text": "•  建立新渠道试投池: ", "size": 10.0, "bold": True, "color": "#334155"},
+            {"text": "•  阶梯式缩量: ", "size": 10.5, "bold": True, "color": "#0F172A"},
+            {"text": "对低效渠道实施每周10%的预算递减机制\n\n", "size": 10.0, "color": "#475569"},
+            {"text": "•  建立新渠道试投池: ", "size": 10.5, "bold": True, "color": "#0F172A"},
             {"text": "定向开发KOC种草、垂直社区等新型渠道，首批测试ROI达1:4.5", "size": 10.0, "color": "#475569"},
         ],
     )
 
     # --------------------------------------------------------------------------
     # Action Section 2: Title Strip + Plain Text Bullet List (Directly on White Card)
+    # Balanced vertical span: y=626 to y=804 (40px natural gap from Action 1)
     # --------------------------------------------------------------------------
-    # Title Strip 2: [508, 502, 456, 32]
-    builder.add_card(box=[508, 502, 456, 32], bg_color="#EBF4FD", border_color="transparent", radius=True)
-    # Number 2 Square Badge
-    builder.add_badge(box=[512, 506, 24, 24], text="2", bg_color="#1B5B9E", text_color="#FFFFFF", font_size=11, bold=True)
+    # Title Strip 2: [508, 626, 456, 36]
+    builder.add_card(box=[508, 626, 456, 36], bg_color="#EBF4FD", border_color="transparent", radius=True)
+    # Number 2 Circle Badge (Mathematic Circle: 24x24)
+    builder.add_badge(box=[512, 632, 24, 24], text="2", bg_color="#1B5B9E", text_color="#FFFFFF", font_size=11, bold=True)
     # Title 2 Text
-    builder.add_textbox(box=[544, 504, 410, 28], text="触点再造 - 激活沉默资产", font_size=12.5, font_color="#0F172A", bold=True)
-    # Bullet List 2 (Directly on white surface)
+    builder.add_textbox(box=[544, 630, 410, 28], text="触点再造 - 激活沉默资产", font_size=13.5, font_color="#0F172A", bold=True)
+    # Bullet List 2 (Directly on white surface, spacious line height & padding)
     builder.add_textbox(
-        box=[512, 540, 452, 54],
+        box=[512, 674, 452, 130],
         runs=[
-            {"text": "•  黄金72小时: ", "size": 10.0, "bold": True, "color": "#334155"},
-            {"text": "对高价值用户推送专属权益包（含¥50无门槛券+会员体验）\n", "size": 10.0, "color": "#475569"},
-            {"text": "•  周期性刺激: ", "size": 10.0, "bold": True, "color": "#334155"},
+            {"text": "•  黄金72小时: ", "size": 10.5, "bold": True, "color": "#0F172A"},
+            {"text": "对高价值用户推送专属权益包（含¥50无门槛券+会员体验）\n\n", "size": 10.0, "color": "#475569"},
+            {"text": "•  周期性刺激: ", "size": 10.5, "bold": True, "color": "#0F172A"},
             {"text": "对中频用户每月推送品类专属优惠（美妆/母婴等定向满减）", "size": 10.0, "color": "#475569"},
         ],
     )
 
     # --------------------------------------------------------------------------
     # Footer Section: Blue Bottom Bar + Title Badge + 4 Keyword Pills
+    # Balanced vertical span: y=842 to y=918 (38px natural gap from Action 2)
     # --------------------------------------------------------------------------
-    # Bottom Footer Container Bar: [498, 855, 476, 70]
+    # Bottom Footer Container Bar: [498, 842, 476, 76]
     builder.add_card(
-        box=[498, 855, 476, 70],
+        box=[498, 842, 476, 76],
         bg_color="#EBF4FC",
         border_color="transparent",
         radius=True,
     )
 
-    # Bottom Title Badge: [506, 868, 142, 38]
+    # Bottom Title Badge: [506, 858, 144, 42]
     builder.add_badge(
-        box=[506, 868, 142, 38],
+        box=[506, 858, 144, 42],
         text="在存量战场挖掘增量价值",
         bg_color="#1B5B9E",
         text_color="#FFFFFF",
-        font_size=9.0,
+        font_size=9.5,
         bold=True,
     )
 
     # Bottom 4 Keyword Pills: using add_grid for perfectly even distribution
-    pill_boxes = builder.add_grid(box=[656, 868, 308, 38], cols=4, rows=1, gap_x=8.0)
+    pill_boxes = builder.add_grid(box=[656, 858, 308, 42], cols=4, rows=1, gap_x=8.0)
     keywords = ["渠道洗牌", "沉默唤醒", "成本攻坚", "精准刀法"]
     for idx, p_box in enumerate(pill_boxes):
         builder.add_badge(
@@ -352,7 +355,7 @@ def add_strategy_card_section(builder: SlideBuilder) -> None:
             bg_color="#FFFFFF",
             text_color="#1B5B9E",
             border_color="#93C5FD",
-            font_size=8.5,
+            font_size=9.0,
             bold=True,
         )
 

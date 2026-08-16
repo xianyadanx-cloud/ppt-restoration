@@ -61,6 +61,42 @@ def compute_two_column_baseline(
     }
 
 
+def distribute_vertical_sections(
+    container_top: float,
+    container_height: float,
+    count: int,
+    header_h: float = 76.0,
+    footer_h: float = 75.0,
+    top_margin: float = 24.0,
+    bottom_margin: float = 20.0,
+    min_gap_y: float = 30.0,
+) -> List[Dict[str, float]]:
+    """Calculate balanced vertical section tops and heights without giant void gaps."""
+    if count <= 0:
+        return []
+
+    content_start_y = container_top + header_h + top_margin
+    content_end_y = container_top + container_height - footer_h - bottom_margin
+    available_h = content_end_y - content_start_y
+
+    total_gaps_h = (count - 1) * min_gap_y
+    remaining_h = available_h - total_gaps_h
+    section_h = max(40.0, remaining_h / float(count))
+
+    sections = []
+    current_y = content_start_y
+    for i in range(count):
+        sections.append({
+            "index": i + 1,
+            "top": round(current_y, 1),
+            "height": round(section_h, 1),
+            "bottom": round(current_y + section_h, 1)
+        })
+        current_y += section_h + min_gap_y
+
+    return sections
+
+
 def main():
     parser = argparse.ArgumentParser(description="Skill: Spacing & Grid Calculator")
     parser.add_argument("--grid", nargs=4, type=float, metavar=("L", "T", "W", "H"), help="Parent box")

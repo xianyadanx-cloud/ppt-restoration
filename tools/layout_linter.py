@@ -118,6 +118,30 @@ def audit_layout(pptx_path: str) -> Dict[str, Any]:
         else:
             passed_rules.append(f"Rule 4: Author Watermark Typography Scale ({a_shape.get('font_size')} pt <= 16 pt)")
 
+    # Rule 6: Vertical Void Gap & Container Density Audit
+    # Inspect right column major card (Block 5)
+    right_card_shapes = [s for s in shapes_info if s["box"][0] >= 480 and s["box"][1] >= 300]
+    if right_card_shapes:
+        # Sort sub-elements by top
+        sub_items = [s for s in right_card_shapes if s["box"][3] > 10.0 and (s["text"] or s["type"] == 1)]
+        sub_items.sort(key=lambda s: s["box"][1])
+        
+        # Check vertical gaps between consecutive substantive sections
+        max_internal_gap = 0.0
+        gap_culprit = None
+        for i in range(len(sub_items) - 1):
+            s_curr = sub_items[i]
+            s_next = sub_items[i+1]
+            gap = s_next["box"][1] - s_curr["bottom"]
+            if gap > max_internal_gap:
+                max_internal_gap = gap
+                gap_culprit = (s_curr["text"] or s_curr["name"], s_next["text"] or s_next["name"])
+
+        if max_internal_gap > 75.0:
+            errors.append(f"[RULE 6: GIANT_VOID_GAP] Detected severe vertical void of {max_internal_gap:.1f}px between '{gap_culprit[0][:15]}' and '{gap_culprit[1][:15]}' (max allowed <= 70px). Content must be balanced evenly.")
+        else:
+            passed_rules.append(f"Rule 6: Vertical Space Density & Void Audit (max_gap={max_internal_gap:.1f}px <= 70px)")
+
     overall_pass = len(errors) == 0
 
     return {
