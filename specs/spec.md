@@ -1,59 +1,54 @@
 ---
-specId: "SPEC-FEAT-PPT-004-001"
-title: "需求规格说明书 (PRD): 非多模态自动化 Agent 还原工具链与 Y 轴色阶突变探测引擎"
-status: "已批准"
+specId: "SPEC-FEAT-PPT-005"
+title: "需求规格说明书 (PRD): 弹性布局容器、物理字号拟合器与 Design Tokens 规范引擎"
 version: "1.0"
-author: "AI Coding Assistant & Feng Liu"
-date: "2026-08-16"
-priority: "P0"
-tags: ["Agent", "Vision-Independent", "ColorProfiler", "ErrorLocalizer", "SynthCode", "Y-AxisStripDetection"]
+status: "已批准"
+last_updated: "2026-08-16"
+authors: ["Antigravity", "feng.liu"]
 ---
 
-# 1. 业务背景与用户价值 (Context & Value)
+# 需求规格说明书 (PRD): 弹性布局容器、物理字号拟合器与 Design Tokens 规范引擎
 
-在 PPT 图像还原到可编辑 `.pptx` 的现有流程中，Agent 高度依赖多模态大模型的视觉直觉进行“看图猜尺寸、看图猜颜色、看图找差异”，存在两大固有缺陷：
-1. **语义先验幻觉**：模型倾向于按照常见卡片模式脑补嵌套大卡（如将仅有 30px 高度的局部条形标题底色 `title_strip` 误判为包裹整个正文列表的 `full_card`）；
-2. **多模态看图迭代成本高且精度有限**：缺乏像素级、确定性的数学分析工具，导致微调陷入多轮盲猜循环。
-
-本项目旨在构建一套**100% 独立于多模态 LLM**的确定性算法工具链，提供自动化分块、K-Means 色彩/渐变探测、Y 轴背景色阶突变分析、声明式代码合成以及结构化像素误差对账闭环。
+> **目标**：彻底解决 AI Agent 在 PPT 还原中“靠肉眼猜坐标导致错位、字号过大折行爆框、手动算间距重叠”的核心痛点，通过算法接管布局与尺寸计算。
 
 ---
 
-# 2. 用户故事与验收标准 (User Stories & Acceptance Criteria)
+## 🎯 1. 业务价值与用户故事 (User Stories)
 
-### US-1: Y 轴背景色阶突变自动探测 (Y-Axis Background Strip Detector)
-- **As a** PPT 还原 Agent,
-- **I want to** 在扫描卡片区域时，自动逐行检测背景像素的突变点,
-- **So that** 能够以数据精确区分 `title_strip`（局部标题底条）、`full_card`（完整底卡）与 `plain_text_area`（纯白正文无底卡），彻底杜绝脑补加框。
-- **Acceptance Criteria**:
-  - [x] AC-1.1: 能够沿 Y 轴采样每行背景色，排除文字边缘像素，计算行背景有效 RGB。
-  - [x] AC-1.2: 连续高度在 `15px - 55px` 且下方为纯白色的区域，自动归类为 `title_strip`。
-  - [x] AC-1.3: 纯白区域自动标记为 `plain_text_area` 并附带说明 `Direct canvas/white background for body bullets`。
+### [US-01] 弹性流式堆叠容器 (`add_stack`)
+* **需求描述**：作为 Agent，我只需定义外层容器坐标与子元素列表，无需手动计算每个子元素的绝对 `top/left`。引擎自动按照指定方向（`direction="vertical"|"horizontal"`）、间距（`gap`）和对齐方式（`align="left"|"center"|"right"`）自动计算各子元素坐标。
+* **验收标准**：
+  - 支持垂直和水平方向的线性堆叠；
+  - 子元素支持文本、卡片、徽章标签等混合类型；
+  - 元素间距绝对均等，无重叠或溢出。
 
-### US-2: 全自动颜色与渐变提取器 (Automatic Color & Gradient Profiler)
-- **As a** PPT 还原 Agent,
-- **I want to** 指定任意 0-1000 归一化 box 区域，自动提取主色、渐变方向及起止色,
-- **So that** 无需多模态模型猜测色值与角度。
-- **Acceptance Criteria**:
-  - [x] AC-2.1: 采用 K-Means 聚类输出 Top-5 主色（HEX）。
-  - [x] AC-2.2: 比较水平/垂直/对角线像素方差，自动输出渐变方向与两端精确色。
-  - [x] AC-2.3: 采样边缘 3px 判断真实边框色与粗细。
+### [US-02] 物理字符宽度测算与字号自适应 (`auto_fit_font`)
+* **需求描述**：当文本框设定了单行显示或给定容器宽度时，引擎自动物理测算中英文混合字符串的真实渲染宽度；若超出容器可用宽度的 90%，算法自动平滑缩减字号（直到刚好放下或达到安全下限 7pt），彻底杜绝意外折行。
+* **验收标准**：
+  - 中英文字符物理宽度测算误差 $\le 5\%$；
+  - 单行大字（如 "38万"、"规模缺口"）在限定宽度内恒不折行。
 
-### US-3: 声明式 JSON 到 Python 代码合成器 (JSON-to-Code Synthesizer)
-- **As a** PPT 还原 Agent,
-- **I want to** 将声明式 `block_spec.json` 自动编译为 `build_slide_XX.py` 脚本,
-- **So that** 代码 100% 符合 `SlideBuilder` 纯矢量规范并支持 `--blocks` 与 `--cumulative-up-to` 模块化调试。
-- **Acceptance Criteria**:
-  - [x] AC-3.1: 映射 `card`, `gradient_card`, `badge`, `textbox`, `table`, `progress_bar` 到标准 API。
-  - [x] AC-3.2: 自动生成包含主调度函数与 CLI 的完整 Python 模块。
+### [US-03] 弹性栅格网格布局容器 (`add_grid`)
+* **需求描述**：支持多列/多行卡片阵列（如 3 联 KPI 卡片、4 组行动策略卡），只需传入总外框包围盒、列数 `cols`、水平间距 `gap_x` 和垂直间距 `gap_y`，引擎自动均匀切分子卡片坐标。
+* **验收标准**：
+  - 自动均分宽度，计算出各 Cell 的 0-1000 空间坐标；
+  - 支持一键为每个 Cell 渲染底卡与内容。
 
-### US-4: 结构化像素误差定位与修复器 (Error Localizer & Actionable Fix Generator)
-- **As a** PPT 还原 Agent,
-- **I want to** 对比 PPTX 渲染图与原图，输出结构化 JSON 修复建议,
-- **So that** 能够直接根据机器指令修改代码，无需人工或大模型肉眼比对。
-- **Acceptance Criteria**:
-  - [x] AC-4.1: 输出每项元素的 $\Delta E$ 色差、严重等级（`CRITICAL` / `HIGH` / `MEDIUM`）。
-  - [x] AC-4.2: 提供可直接执行的代码修复片段（如 `bg_color="..."`, `font_color="..."`）。
+### [US-04] Design Tokens 标准规范池
+* **需求描述**：在 `SlideBuilder` 中固化标准 Design Tokens 常量（如 `Tokens.FONT_TITLE_LG = 32`, `Tokens.FONT_KPI = 22`, `Tokens.FONT_BODY = 11`, `Tokens.FONT_BADGE = 8.5`, `Tokens.GAP_SM = 8` 等），并在方法入参中支持直接传入 Token 键名或常量。
+* **验收标准**：
+  - 提供统一的 `Tokens` 类供 Agent 快速引用；
+  - 文本与卡片方法均兼容 Token 常量。
+
+---
+
+## 🚫 2. 盲区确认表与不改清单 (Non-Goals)
+
+| 事项 | 裁决状态 | 裁决依据与处理方式 |
+| :--- | :--- | :--- |
+| **0-1000 坐标系** | **坚决保留** | 所有弹性容器依然接受并输出 0-1000 归一化坐标，保持全局一致。 |
+| **现有 API 兼容性** | **严格向后兼容** | 原有 `add_card`、`add_textbox`、`add_badge` 等方法签名与行为保持 100% 兼容。 |
+| **外部依赖** | **零新增重依赖** | 纯 Python 几何与字符测算算法实现，不引入额外 C 扩展或沉重 GUI 库。 |
 
 ## 9. 变更记录
 | 版本 | 变更类型 | 变更内容说明 | 评审人 |

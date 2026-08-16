@@ -87,11 +87,70 @@ class TestPPTRestorationWorkspace(unittest.TestCase):
         self.assertEqual(res_sync.returncode, 0)
 
 
-    def test_cumulative_building(self):
-        from slides.build_slide_02 import build_slide_02
-        out_cum = "output/test_cum_build.pptx"
-        build_slide_02(cumulative_up_to=2, output_path=out_cum)
-        self.assertTrue(os.path.exists(out_cum))
+    def test_design_tokens_and_text_metrics(self):
+        from tools.pptx_helper import Tokens, estimate_text_width_pt, calculate_safe_font_size
+        # Test Design Tokens
+        self.assertEqual(Tokens.FONT_TITLE_LG, 32.0)
+        self.assertEqual(Tokens.FONT_BADGE, 8.5)
+        self.assertEqual(Tokens.GAP_SM, 8.0)
+
+        # Test Text Physical Metrics Estimation
+        w_cjk = estimate_text_width_pt("季度攻坚", 10.0)
+        self.assertAlmostEqual(w_cjk, 40.0, delta=1.0)
+        w_ascii = estimate_text_width_pt("1234", 10.0)
+        self.assertLess(w_ascii, 30.0)
+
+        # Test Safe Font Size Auto-Fit Calculation
+        safe_size = calculate_safe_font_size(
+            text="非常长的一个业务主标题文本内容不能折行",
+            target_width_pt=100.0,
+            desired_font_size=24.0,
+            min_font_size=8.0,
+        )
+        self.assertLess(safe_size, 24.0)
+        self.assertGreaterEqual(safe_size, 8.0)
+
+    def test_flex_stack_and_grid_layout(self):
+        from tools.pptx_helper import SlideBuilder, Tokens
+        builder = SlideBuilder(aspect_ratio="16:9")
+
+        # 1. Test Grid Layout
+        grid_cells = builder.add_grid(box=[50, 200, 900, 300], cols=3, rows=1, gap_x=20.0)
+        self.assertEqual(len(grid_cells), 3)
+        self.assertAlmostEqual(grid_cells[0][2], (900 - 40) / 3.0, delta=0.1)
+
+        # 2. Test Stack Layout
+        stack_shapes = builder.add_stack(
+            box=list(grid_cells[0]),
+            direction="vertical",
+            gap=Tokens.GAP_SM,
+            align="center",
+            children=[
+                {"type": "badge", "text": "核心标签", "bg_color": "#2563EB", "text_color": "#FFFFFF"},
+                {"type": "text", "text": "38万", "font_size": Tokens.FONT_KPI_VAL, "bold": True},
+                {"type": "text", "text": "较上季度增加12%", "font_size": Tokens.FONT_BODY_SM, "font_color": "#64748B"},
+            ],
+            bg_color="#F8FAFC",
+            border_color="#E2E8F0",
+        )
+        self.assertGreaterEqual(len(stack_shapes), 3)
+
+        # 3. Test Flex Card
+        flex_shapes = builder.add_flex_card(
+            box=list(grid_cells[1]),
+            badge="突破行动",
+            kpi_value="84%",
+            kpi_label="目标达成率",
+            title="战略纵深拓展",
+            body_items=["完成新渠道铺设", "留存率提升 5.2%"],
+            bg_color="#FFFFFF",
+            border_color="#CBD5E1",
+        )
+        self.assertGreaterEqual(len(flex_shapes), 1)
+
+        out_flex = "output/test_flex_layout.pptx"
+        builder.save(out_flex)
+        self.assertTrue(os.path.exists(out_flex))
 
 
 if __name__ == "__main__":

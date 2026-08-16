@@ -1,64 +1,80 @@
 ---
-specId: "SPEC-FEAT-PPT-004-001"
-title: "技术实现方案与架构设计 (Plan): 非多模态自动化工具链架构"
-status: "已批准"
+specId: "SPEC-FEAT-PPT-005"
+title: "技术方案与架构设计说明书 (Plan): 弹性布局容器与物理字号拟合引擎"
 version: "1.0"
+status: "已批准"
+last_updated: "2026-08-16"
+authors: ["Antigravity", "feng.liu"]
 ---
 
-# 1. 架构总览 (Architecture Overview)
+# 技术方案与架构设计说明书 (Plan)
 
-```
-[ input/<name>.png ]
-        │
-        ├──▶ tools/segment_auto.py    (自动分块与投影直方图分析)
-        │           │
-        │           ▼
-        ├──▶ tools/color_profiler.py  (K-Means 聚色 + Y轴色阶突变探测 + 渐变识别)
-        │           │
-        │           ▼
-        │    [ specs/<name>_spec.json ] (声明式结构规格)
-        │           │
-        │           ▼
-        ├──▶ tools/synth_code.py      (JSON-to-Code 矢量代码合成器)
-        │           │
-        │           ▼
-        │    [ slides/build_<name>.py ]
-        │           │
-        │           ▼
-        ├──▶ tools/render_and_diff.py (100% 矢量 PPTX 渲染 + PIL 对账)
-        │           │
-        │           ▼
-        └──▶ tools/error_localizer.py (结构化误差定位 + 自动修复指令闭环)
+## 🏗️ 1. 架构模块划分
+
+扩展 [`tools/pptx_helper.py`](file:///Users/feng.liu/workspace/tools/pptx_helper.py)，新增 4 大核心能力模块：
+
+```mermaid
+flowchart TD
+    subgraph pptx_helper ["tools/pptx_helper.py 架构扩展"]
+        Tokens["1. DesignTokens 常量规范池<br/>(字阶/间距/圆角/层级)"]
+        Metrics["2. TextMetrics 物理字符度量器<br/>(estimate_text_width_pt, auto_fit_font)"]
+        Flex["3. FlexLayout 弹性布局算子<br/>(Stack & Grid 空间分发算法)"]
+        Builder["4. SlideBuilder 顶层 API 增强<br/>(add_stack, add_grid, add_flex_card)"]
+    end
+
+    Tokens --> Builder
+    Metrics --> Builder
+    Flex --> Builder
 ```
 
 ---
 
-# 2. 核心模块设计 (Component Design)
+## 📐 2. 算法核心细节设计
 
-### 2.1 `tools/color_profiler.py` (色阶与子容器探测引擎)
-- **输入**：`img_path`, `box_norm` [left, top, width, height]
-- **算法流程**：
-  1. 归一化坐标转换与内部安全采样（避开 3px 外框模糊）；
-  2. K-Means 聚类提取 5 大主色；
-  3. 水平/垂直色差投影比较判定渐变方向及起止 HEX 色；
-  4. `detect_vertical_strips`：扫描中轴 60% 宽度，按连通域高度阈值（$15 \le h \le 55$）自动划分 `title_strip` 与 `plain_text_area`。
+### 2.1 物理字符度量与 `auto_fit_font` 算法
+```python
+def estimate_text_width_pt(text: str, font_size_pt: float) -> float:
+    """基于字形物理特征测算混合字符串宽度 (磅值)"""
+    width = 0.0
+    for ch in str(text):
+        if ord(ch) > 127:
+            # 中文字符 / 全角符号：标准 1.0 em
+            width += font_size_pt * 1.0
+        elif ch in ".,:;!'iIl ":
+            # 超窄字符：0.28 em
+            width += font_size_pt * 0.28
+        elif ch in "mwMW@#":
+            # 宽英文字符：0.85 em
+            width += font_size_pt * 0.85
+        elif ch.isupper():
+            # 大写英文：0.65 em
+            width += font_size_pt * 0.65
+        else:
+            # 普通小写英文与数字：0.52 em
+            width += font_size_pt * 0.52
+    return width
+```
 
-### 2.2 `tools/synth_code.py` (代码合成引擎)
-- **输入**：`block_spec.json`
-- **生成产物**：符合 `SlideBuilder` 标准调用语法的 Python 脚本。
-- **特性**：
-  - 自动解耦为独立的 `add_<block>_section(builder)` 函数；
-  - 自动组装 `build_<name>()` 累加构建与 CLI 接口。
+### 2.2 弹性堆叠布局算法 (`add_stack`)
+- **入参**：外框包围盒 `box = [L, T, W, H]`，`direction = "vertical" | "horizontal"`，`gap = 8`，`align = "center"`，`children = [...]`。
+- **计算逻辑**：
+  - 遍历所有 `children` 计算固定尺寸或自动推导尺寸；
+  - 依据容器 `W` 或 `H` 分配起始偏移，对齐时自动应用 `offset = (Total_W - Item_W) / 2`；
+  - 顺序调用底层构建算子完成无缝组装。
 
-### 2.3 `tools/error_localizer.py` (像素误差定位引擎)
-- **输入**：`pptx_path`, `orig_img_path`, `spec_json`
-- **输出**：结构化 JSON 错误清单与修复指令。
+### 2.3 弹性网格布局算法 (`add_grid`)
+- **入参**：外框包围盒 `box = [L, T, W, H]`，`cols = 3`，`gap_x = 12`，`gap_y = 12`。
+- **计算逻辑**：
+  - 单单元格宽度：`cell_w = (W - (cols - 1) * gap_x) / cols`
+  - 单单元格高度：`cell_h = (H - (rows - 1) * gap_y) / rows`
+  - 返回各 cell 的 0-1000 坐标列表 `List[Tuple[float, float, float, float]]`，支持链式构建。
 
 ---
 
-# 3. 依赖与环境约束 (Dependencies & Constraints)
-- **核心依赖**：`Pillow` (PIL), `python-pptx`, `lxml`（纯 Python + 数学计算，零外部第三方大模型 API 依赖）。
-- **空间坐标**：全面遵循 `0-1000` 归一化规范。
+## 🛡️ 3. 不改清单 (Hard Constraints)
+1. **PICTURE 恒为 0**：弹性容器组装的所有内容全部必须是 PPT 原生矢量图形或文本框。
+2. **0-1000 坐标系**：所有对外的接口统一保持 0-1000 归一化输入输出。
+3. **单测无缝兼容**：现有 `tests/test_workspace.py` 8/8 必须全部通过，并新增 4 个针对弹性容器与字号拟合器的专项单测。
 
 ## 8. 变更记录
 | 版本 | 变更类型 | 变更内容说明 | 评审人 |

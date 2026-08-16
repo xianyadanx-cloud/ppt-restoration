@@ -51,6 +51,81 @@ def color_to_hex(val: Any) -> str:
     return "334155"
 
 
+class Tokens:
+    """Standardized Design Tokens for typography scale, spacing, and radius."""
+
+    # Typography Scales (in pt)
+    FONT_HERO = 36.0
+    FONT_TITLE_LG = 32.0
+    FONT_TITLE_MD = 24.0
+    FONT_KPI_VAL = 22.0
+    FONT_SECTION_H2 = 16.0
+    FONT_CARD_TITLE = 14.0
+    FONT_BODY = 11.0
+    FONT_BODY_SM = 10.0
+    FONT_BADGE = 8.5
+    FONT_CAPTION = 7.5
+
+    # Normalized Spacings (0-1000 scale)
+    GAP_XS = 4.0
+    GAP_SM = 8.0
+    GAP_MD = 14.0
+    GAP_LG = 20.0
+    GAP_XL = 30.0
+
+    # Margins & Paddings
+    PAD_CARD = 12.0
+    PAD_BADGE = 6.0
+
+
+def estimate_text_width_pt(text: Any, font_size_pt: float) -> float:
+    """Estimate rendered text width in points (pt) based on typographic character weights."""
+    if not text:
+        return 0.0
+    width = 0.0
+    for ch in str(text):
+        if ord(ch) > 127:
+            # CJK full-width characters (Chinese, Japanese, full-width punctuation) ~ 1.0 em
+            width += font_size_pt * 1.0
+        elif ch in ".,:;!'iIl ":
+            # Narrow ASCII characters ~ 0.28 em
+            width += font_size_pt * 0.28
+        elif ch in "mwMW@#%&":
+            # Wide ASCII characters ~ 0.85 em
+            width += font_size_pt * 0.85
+        elif ch.isupper() or ch.isdigit():
+            # Uppercase letters & standard digits ~ 0.62 em
+            width += font_size_pt * 0.62
+        else:
+            # Standard lowercase ASCII ~ 0.52 em
+            width += font_size_pt * 0.52
+    return width
+
+
+def calculate_safe_font_size(
+    text: Any,
+    target_width_pt: float,
+    desired_font_size: float,
+    min_font_size: float = 7.0,
+    max_lines: int = 1,
+) -> float:
+    """Calculate maximum safe font size that fits within target width without accidental wrapping."""
+    if max_lines > 1 or target_width_pt <= 0 or not text:
+        return float(desired_font_size)
+
+    current_size = float(desired_font_size)
+    # Available usable width with 8% safety buffer for font kerning/internal padding
+    safe_available = target_width_pt * 0.92
+
+    while current_size > min_font_size:
+        est_w = estimate_text_width_pt(text, current_size)
+        if est_w <= safe_available:
+            break
+        current_size -= 0.5
+
+    return max(min_font_size, round(current_size, 1))
+
+
 def apply_gradient_fill(
     element_spPr,
     start_color: str,
@@ -448,14 +523,16 @@ class SlideBuilder:
         text: Optional[str] = None,
         runs: Optional[List[Dict[str, Any]]] = None,
         align: str = "left",
-        font_size: int = 12,
+        font_size: Union[int, float] = 12,
         font_color: str = "#334155",
         bold: bool = False,
         margin_pt: float = 0.0,
         rotation: float = 0.0,
         word_wrap: bool = True,
+        auto_fit_font: bool = False,
+        max_lines: Optional[int] = None,
     ) -> Any:
-        """Add a text box with structured text runs or simple text."""
+        """Add a text box with structured text runs or simple text with auto-fitting support."""
         l, t, w, h = self._to_emu(box)
         tx_box = self.slide.shapes.add_textbox(l, t, w, h)
         if rotation != 0.0:
@@ -465,6 +542,16 @@ class SlideBuilder:
         margin = Pt(margin_pt)
         tf.margin_left = tf.margin_top = tf.margin_right = tf.margin_bottom = margin
 
+        # Calculate safe auto-fit font size if requested
+        target_w_pt = (box[2] * self.width_inch / 1000.0) * 72.0
+        effective_font_size = font_size
+        if auto_fit_font and text:
+            effective_font_size = calculate_safe_font_size(
+                text=text,
+                target_width_pt=target_w_pt,
+                desired_font_size=float(font_size),
+                max_lines=max_lines or (1 if not word_wrap else 2),
+            )
 
         align_map = {
             "left": PP_ALIGN.LEFT,
@@ -479,6 +566,14 @@ class SlideBuilder:
             p.alignment = paragraph_align
             for run_def in runs:
                 run_text = run_def.get("text", "")
+                r_size = run_def.get("size", effective_font_size)
+                if auto_fit_font and run_text:
+                    r_size = calculate_safe_font_size(
+                        text=run_text,
+                        target_width_pt=target_w_pt,
+                        desired_font_size=float(r_size),
+                        max_lines=max_lines or 1,
+                    )
                 if "\n" in run_text and run_def.get("new_paragraph_on_newline", False):
                     lines = run_text.split("\n")
                     for idx, line in enumerate(lines):
@@ -487,13 +582,13 @@ class SlideBuilder:
                             p.alignment = paragraph_align
                         r = p.add_run()
                         r.text = line
-                        r.font.size = Pt(run_def.get("size", font_size))
+                        r.font.size = Pt(r_size)
                         r.font.bold = run_def.get("bold", bold)
                         r.font.color.rgb = parse_color(run_def.get("color", font_color))
                 else:
                     r = p.add_run()
                     r.text = run_text
-                    r.font.size = Pt(run_def.get("size", font_size))
+                    r.font.size = Pt(r_size)
                     r.font.bold = run_def.get("bold", bold)
                     r.font.color.rgb = parse_color(run_def.get("color", font_color))
         elif text:
@@ -503,7 +598,7 @@ class SlideBuilder:
                 p.alignment = paragraph_align
                 r = p.add_run()
                 r.text = para_text
-                r.font.size = Pt(font_size)
+                r.font.size = Pt(effective_font_size)
                 r.font.bold = bold
                 r.font.color.rgb = parse_color(font_color)
 
@@ -760,6 +855,277 @@ class SlideBuilder:
                 align="left",
             )
 
+    def add_grid(
+        self,
+        box: List[float],
+        cols: int = 3,
+        rows: int = 1,
+        gap_x: float = 12.0,
+        gap_y: float = 12.0,
+    ) -> List[Tuple[float, float, float, float]]:
+        """Divide a bounding box into an evenly distributed grid of cell boxes in 0-1000 coordinates."""
+        l, t, w, h = normalize_box(box)
+        cols = max(1, int(cols))
+        rows = max(1, int(rows))
+
+        total_gap_w = (cols - 1) * gap_x
+        total_gap_h = (rows - 1) * gap_y
+
+        cell_w = (w - total_gap_w) / float(cols)
+        cell_h = (h - total_gap_h) / float(rows)
+
+        grid_cells: List[Tuple[float, float, float, float]] = []
+        for r in range(rows):
+            for c in range(cols):
+                cell_left = l + c * (cell_w + gap_x)
+                cell_top = t + r * (cell_h + gap_y)
+                grid_cells.append((cell_left, cell_top, cell_w, cell_h))
+
+        return grid_cells
+
+    def add_stack(
+        self,
+        box: List[float],
+        direction: str = "vertical",
+        gap: float = 8.0,
+        align: str = "center",
+        children: Optional[List[Dict[str, Any]]] = None,
+        bg_color: Optional[str] = None,
+        border_color: Optional[str] = None,
+        border_width_pt: float = 1.0,
+        radius: bool = True,
+        gradient_colors: Optional[List[str]] = None,
+        gradient_angle: float = 90.0,
+    ) -> List[Any]:
+        """Add a responsive Flex/Stack container that automatically arranges children with equal spacing and alignment."""
+        l, t, w, h = normalize_box(box)
+        rendered_shapes: List[Any] = []
+
+        # Optional background container card
+        if bg_color or gradient_colors or border_color:
+            container = self.add_card(
+                box=[l, t, w, h],
+                bg_color=bg_color or "transparent",
+                border_color=border_color,
+                border_width_pt=border_width_pt,
+                radius=radius,
+                gradient_colors=gradient_colors,
+                gradient_angle=gradient_angle,
+            )
+            rendered_shapes.append(container)
+
+        if not children:
+            return rendered_shapes
+
+        # Layout calculations
+        is_vertical = direction.lower() == "vertical"
+
+        if is_vertical:
+            curr_y = t + 8.0  # Top padding
+            for item in children:
+                item_type = item.get("type", "text").lower()
+                item_h = float(item.get("height", 24.0))
+                item_w = float(item.get("width", w - 16.0))
+
+                # Align X
+                if align == "center":
+                    item_x = l + (w - item_w) / 2.0
+                elif align == "right":
+                    item_x = l + w - item_w - 8.0
+                else:  # left
+                    item_x = l + 8.0
+
+                item_box = [item_x, curr_y, item_w, item_h]
+
+                if item_type == "badge":
+                    shape = self.add_badge(
+                        box=item_box,
+                        text=item.get("text", ""),
+                        bg_color=item.get("bg_color", "#DBEAFE"),
+                        text_color=item.get("text_color", "#1E40AF"),
+                        font_size=int(item.get("font_size", 9)),
+                        bold=item.get("bold", True),
+                    )
+                    rendered_shapes.append(shape)
+                elif item_type == "card":
+                    shape = self.add_card(
+                        box=item_box,
+                        bg_color=item.get("bg_color", "#FFFFFF"),
+                        border_color=item.get("border_color", "#E2E8F0"),
+                        radius=item.get("radius", True),
+                    )
+                    rendered_shapes.append(shape)
+                else:  # Default text
+                    shape = self.add_textbox(
+                        box=item_box,
+                        text=item.get("text", ""),
+                        font_size=item.get("font_size", 12),
+                        font_color=item.get("font_color", "#0F172A"),
+                        bold=item.get("bold", False),
+                        align=item.get("align", align),
+                        word_wrap=item.get("word_wrap", False),
+                        auto_fit_font=item.get("auto_fit_font", True),
+                    )
+                    rendered_shapes.append(shape)
+
+                curr_y += item_h + gap
+        else:
+            curr_x = l + 8.0  # Left padding
+            for item in children:
+                item_type = item.get("type", "text").lower()
+                item_w = float(item.get("width", 80.0))
+                item_h = float(item.get("height", h - 16.0))
+
+                # Align Y
+                if align == "middle" or align == "center":
+                    item_y = t + (h - item_h) / 2.0
+                elif align == "bottom":
+                    item_y = t + h - item_h - 8.0
+                else:  # top
+                    item_y = t + 8.0
+
+                item_box = [curr_x, item_y, item_w, item_h]
+
+                if item_type == "badge":
+                    shape = self.add_badge(
+                        box=item_box,
+                        text=item.get("text", ""),
+                        bg_color=item.get("bg_color", "#DBEAFE"),
+                        text_color=item.get("text_color", "#1E40AF"),
+                        font_size=int(item.get("font_size", 9)),
+                        bold=item.get("bold", True),
+                    )
+                    rendered_shapes.append(shape)
+                else:
+                    shape = self.add_textbox(
+                        box=item_box,
+                        text=item.get("text", ""),
+                        font_size=item.get("font_size", 12),
+                        font_color=item.get("font_color", "#0F172A"),
+                        bold=item.get("bold", False),
+                        align=item.get("align", "center"),
+                        word_wrap=item.get("word_wrap", False),
+                        auto_fit_font=item.get("auto_fit_font", True),
+                    )
+                    rendered_shapes.append(shape)
+
+                curr_x += item_w + gap
+
+        return rendered_shapes
+
+    def add_flex_card(
+        self,
+        box: List[float],
+        title: Optional[str] = None,
+        subtitle: Optional[str] = None,
+        badge: Optional[str] = None,
+        badge_bg: str = "#3B82F6",
+        badge_color: str = "#FFFFFF",
+        kpi_value: Optional[str] = None,
+        kpi_label: Optional[str] = None,
+        body_items: Optional[List[str]] = None,
+        bg_color: str = "#FFFFFF",
+        border_color: str = "#E2E8F0",
+        radius: bool = True,
+        gradient_colors: Optional[List[str]] = None,
+        gradient_angle: float = 90.0,
+    ) -> List[Any]:
+        """Add a composite semantic card with automatically calculated layout and auto-fitting typography."""
+        l, t, w, h = normalize_box(box)
+        shapes = []
+
+        # Background Card
+        shapes.append(
+            self.add_card(
+                box=[l, t, w, h],
+                bg_color=bg_color,
+                border_color=border_color,
+                radius=radius,
+                gradient_colors=gradient_colors,
+                gradient_angle=gradient_angle,
+            )
+        )
+
+        children_stack: List[Dict[str, Any]] = []
+
+        if badge:
+            badge_w = min(w * 0.75, estimate_text_width_pt(badge, 8.5) * 1.5 + 16.0)
+            children_stack.append({
+                "type": "badge",
+                "text": badge,
+                "bg_color": badge_bg,
+                "text_color": badge_color,
+                "font_size": Tokens.FONT_BADGE,
+                "width": max(50.0, badge_w),
+                "height": 22.0,
+            })
+
+        if kpi_value:
+            children_stack.append({
+                "type": "text",
+                "text": kpi_value,
+                "font_size": Tokens.FONT_KPI_VAL,
+                "bold": True,
+                "align": "center",
+                "height": 38.0,
+                "auto_fit_font": True,
+            })
+
+        if kpi_label:
+            children_stack.append({
+                "type": "text",
+                "text": kpi_label,
+                "font_size": Tokens.FONT_BODY_SM,
+                "font_color": "#64748B",
+                "align": "center",
+                "height": 18.0,
+                "auto_fit_font": True,
+            })
+
+        if title:
+            children_stack.append({
+                "type": "text",
+                "text": title,
+                "font_size": Tokens.FONT_CARD_TITLE,
+                "bold": True,
+                "align": "left",
+                "height": 24.0,
+                "auto_fit_font": True,
+            })
+
+        if subtitle:
+            children_stack.append({
+                "type": "text",
+                "text": subtitle,
+                "font_size": Tokens.FONT_BODY,
+                "font_color": "#64748B",
+                "align": "left",
+                "height": 20.0,
+                "auto_fit_font": True,
+            })
+
+        if body_items:
+            for item in body_items:
+                children_stack.append({
+                    "type": "text",
+                    "text": f"• {item}",
+                    "font_size": Tokens.FONT_BODY_SM,
+                    "font_color": "#475569",
+                    "align": "left",
+                    "height": 18.0,
+                    "auto_fit_font": True,
+                })
+
+        stack_shapes = self.add_stack(
+            box=[l + 6, t + 6, w - 12, h - 12],
+            direction="vertical",
+            gap=4.0,
+            align="center" if kpi_value else "left",
+            children=children_stack,
+        )
+        shapes.extend(stack_shapes)
+        return shapes
+
     def add_kpi_card(
         self,
         box: List[float],
@@ -771,7 +1137,7 @@ class SlideBuilder:
         border_color: str = "#BAE6FD",
         tag_bg: str = "#E0F2FE",
     ) -> None:
-        """Add a composite 3-part stacked KPI indicator card."""
+        """Add a composite 3-part stacked KPI indicator card (backward compatible)."""
         l, t, w, h = box
         # Container Card
         self.add_card(box=[l, t, w, h], bg_color=bg_color, border_color=border_color, border_width_pt=1.0, radius=True)
@@ -781,7 +1147,7 @@ class SlideBuilder:
         self.add_badge(box=[l + (w - tag_w) / 2, t + 6, tag_w, tag_h], text=top_tag, bg_color=tag_bg, text_color=theme_color, font_size=8)
         # Middle giant value
         val_h = h * 0.45
-        self.add_textbox(box=[l + 5, t + tag_h + 4, w - 10, val_h], text=value, font_size=17, font_color="#0F172A", bold=True, align="center")
+        self.add_textbox(box=[l + 5, t + tag_h + 4, w - 10, val_h], text=value, font_size=17, font_color="#0F172A", bold=True, align="center", auto_fit_font=True)
         # Bottom pill badge
         badge_w = min(w * 0.75, 85)
         badge_h = h * 0.22
