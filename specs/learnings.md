@@ -1,6 +1,6 @@
 ---
-specId: "SPEC-FEAT-PPT-005"
-title: "复盘与经验沉淀 (Learnings): 弹性布局与物理字号拟合"
+specId: "SPEC-FEAT-PPT-006"
+title: "复盘与经验沉淀 (Learnings): Multi-Agent 编排与自动化质检"
 version: "1.0"
 status: "已固化"
 last_updated: "2026-08-16"
@@ -9,16 +9,10 @@ authors: ["Antigravity", "feng.liu"]
 
 # 复盘与经验沉淀 (Learnings)
 
-### [L-01] 杜绝大模型数字盲猜：从“绝对硬算”转向“流式容器”
-* **现象/问题**：Agent 编写 PPT 卡片时，每次都在微调 `badge.top`、`val.top`、`label.top`，加减法容易算错导致重叠或溢出。
-* **根本原因**：LLM 擅长语义装配与结构化声明，不擅长在思维链中高频进行多级空间几何算术。
-* **工程对策**：封装 `add_stack`（流式堆叠）与 `add_grid`（等宽网格），让 Agent 声明结构，由 Python 算法做对齐与等间距计算。
+### [L-01] 架构解耦：从“单点过载”转向“工件驱动的多 Agent 网络”
+* **现象/问题**：单 Agent 承担从宏观感知、写代码到视觉审核全链路，上下文冗长导致指令遗忘。
+* **工程对策**：拆分为 `Architect`、`Developer`、`Reviewer`，以 `blueprint.json` 和 `review_report.json` 为数据契约，Developer 在纯净短上下文中单块生成，降低 Token 消耗并提升代码健壮性。
 
-### [L-02] 物理字符宽度测算（Typographic Metrics）防折行
-* **现象/问题**：Agent 设定的字号在 PPT 渲染时常因中英文字形宽度不同被折成两行。
-* **根本原因**：PPT 文本框存在默认内部 margin 与字形行高，字符数不等于物理宽度。
-* **工程对策**：在 `add_textbox` 中引入 `auto_fit_font=True`，通过 `estimate_text_width_pt` 物理测算中英文真实占用宽度，并在超出可用宽度 90% 时自动降级字号，杜绝折行。
-
-### [L-03] 固化 Design Tokens 规范池
-* **现象/问题**：Agent 随意分配字号与间距，导致页面视觉阶梯混乱。
-* **工程对策**：在 `pptx_helper` 建立 `Tokens` 常量类，在 Prompt 和代码中限制 Agent 统一使用标准字阶（32/24/22/16/14/11/8.5pt）。
+### [L-02] 自动化质检分流（80% 自动化 + 20% 人工把关）
+* **现象/问题**：每一步都需要人工看图，用户疲劳度高。
+* **工程对策**：引入 `eval_metrics.py` 自动计算 SSIM、MSE 与 DOM `PICTURE=0` 校验，自动驱动 3 轮内自愈；仅在宏观蓝图（Gate 2）与终验（Gate 4）打扰人类。

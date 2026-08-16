@@ -1,54 +1,51 @@
 ---
-specId: "SPEC-FEAT-PPT-005"
-title: "需求规格说明书 (PRD): 弹性布局容器、物理字号拟合器与 Design Tokens 规范引擎"
+specId: "SPEC-FEAT-PPT-006"
+title: "需求规格说明书 (PRD): Multi-Agent 角色库、自动化质检与编排调度引擎"
 version: "1.0"
 status: "已批准"
 last_updated: "2026-08-16"
 authors: ["Antigravity", "feng.liu"]
 ---
 
-# 需求规格说明书 (PRD): 弹性布局容器、物理字号拟合器与 Design Tokens 规范引擎
+# 需求规格说明书 (PRD): Multi-Agent 角色库、自动化质检与编排调度引擎
 
-> **目标**：彻底解决 AI Agent 在 PPT 还原中“靠肉眼猜坐标导致错位、字号过大折行爆框、手动算间距重叠”的核心痛点，通过算法接管布局与尺寸计算。
+> **目标**：将单 Agent 串行流程解耦为基于结构化文件协议驱动的 Multi-Agent 协作网络，大幅降低人工打扰频次（从 15 次降至 2 次），实现干净上下文代码生成与自动化视觉质检自愈。
 
 ---
 
 ## 🎯 1. 业务价值与用户故事 (User Stories)
 
-### [US-01] 弹性流式堆叠容器 (`add_stack`)
-* **需求描述**：作为 Agent，我只需定义外层容器坐标与子元素列表，无需手动计算每个子元素的绝对 `top/left`。引擎自动按照指定方向（`direction="vertical"|"horizontal"`）、间距（`gap`）和对齐方式（`align="left"|"center"|"right"`）自动计算各子元素坐标。
-* **验收标准**：
-  - 支持垂直和水平方向的线性堆叠；
-  - 子元素支持文本、卡片、徽章标签等混合类型；
-  - 元素间距绝对均等，无重叠或溢出。
+### [US-01] 专职 Agent 角色 Prompt 规范库 (`agent/roles/`)
+* **需求描述**：明确定义 3 大独立 Agent 角色的系统 Prompt 与任务契约：
+  - `architect.md`：宏观感知与分块蓝图规划师（负责 Gate 1 & Gate 2，输出 `blueprint.json`）。
+  - `developer.md`：单 Block 纯代码生成专家（接收单个 Block Spec 与 API 参考，输出独立的 Python Block 函数）。
+  - `reviewer.md`：多模态视觉 QA 与自愈驱动专家（比对 Slice Diff，分析 DOM 结构，输出结构化 `review_report.json`）。
+* **验收标准**：每个角色 Prompt 包含严密的输入/输出契约、行为边界与错误处理规范。
 
-### [US-02] 物理字符宽度测算与字号自适应 (`auto_fit_font`)
-* **需求描述**：当文本框设定了单行显示或给定容器宽度时，引擎自动物理测算中英文混合字符串的真实渲染宽度；若超出容器可用宽度的 90%，算法自动平滑缩减字号（直到刚好放下或达到安全下限 7pt），彻底杜绝意外折行。
+### [US-02] 自动化质检与度量工具 (`tools/eval_metrics.py`)
+* **需求描述**：提供确定性质检工具，无需人工肉眼比对即可自动化评估局部和全局渲染质量。
 * **验收标准**：
-  - 中英文字符物理宽度测算误差 $\le 5\%$；
-  - 单行大字（如 "38万"、"规模缺口"）在限定宽度内恒不折行。
+  - 计算生成图与原图的 **SSIM 结构相似度** 与 **均方误差 (MSE)**；
+  - 提取 DOM 结构并严格验证 `PICTURE` 计数为 0；
+  - 自动输出结构化评分报告 `review_report.json`（包含 passed 状态、ssim 评分、缺陷列表）。
 
-### [US-03] 弹性栅格网格布局容器 (`add_grid`)
-* **需求描述**：支持多列/多行卡片阵列（如 3 联 KPI 卡片、4 组行动策略卡），只需传入总外框包围盒、列数 `cols`、水平间距 `gap_x` 和垂直间距 `gap_y`，引擎自动均匀切分子卡片坐标。
+### [US-03] 端到端多 Agent 任务编排调度总线 (`tools/orchestrator.py`)
+* **需求描述**：实现多 Agent 的调度与状态机引擎，支持命令行一键运行：
+  - 模式 1：`python tools/orchestrator.py plan input/demo.png`（调用 Architect 生成蓝图并呈报确认）。
+  - 模式 2：`python tools/orchestrator.py run input/demo.png`（按拓扑顺序调度 Developer 独立编码与 Reviewer 自动化自愈，支持最大自愈次数限制）。
+  - 模式 3：`python tools/orchestrator.py assemble input/demo.png`（全页组装与终验交付）。
 * **验收标准**：
-  - 自动均分宽度，计算出各 Cell 的 0-1000 空间坐标；
-  - 支持一键为每个 Cell 渲染底卡与内容。
-
-### [US-04] Design Tokens 标准规范池
-* **需求描述**：在 `SlideBuilder` 中固化标准 Design Tokens 常量（如 `Tokens.FONT_TITLE_LG = 32`, `Tokens.FONT_KPI = 22`, `Tokens.FONT_BODY = 11`, `Tokens.FONT_BADGE = 8.5`, `Tokens.GAP_SM = 8` 等），并在方法入参中支持直接传入 Token 键名或常量。
-* **验收标准**：
-  - 提供统一的 `Tokens` 类供 Agent 快速引用；
-  - 文本与卡片方法均兼容 Token 常量。
+  - 任务状态机清晰（PLANNING -> REVIEWING_BLUEPRINT -> EXECUTING_BLOCKS -> ASSEMBLING -> DONE）；
+  - 自动管理上下文隔离与产物拼装。
 
 ---
 
 ## 🚫 2. 盲区确认表与不改清单 (Non-Goals)
-
 | 事项 | 裁决状态 | 裁决依据与处理方式 |
 | :--- | :--- | :--- |
-| **0-1000 坐标系** | **坚决保留** | 所有弹性容器依然接受并输出 0-1000 归一化坐标，保持全局一致。 |
-| **现有 API 兼容性** | **严格向后兼容** | 原有 `add_card`、`add_textbox`、`add_badge` 等方法签名与行为保持 100% 兼容。 |
-| **外部依赖** | **零新增重依赖** | 纯 Python 几何与字符测算算法实现，不引入额外 C 扩展或沉重 GUI 库。 |
+| **0-1000 坐标系** | **坚决保留** | 所有 Agent 角色与中介 JSON 必须严格遵循 0-1000 坐标系。 |
+| **自愈上限熔断** | **设为 3 次** | 单 Block 自动自愈上限 3 次，防止不可解异常陷入死循环。 |
+| **人机交互节点** | **保留 2 次** | 仅保留 Gate 2 蓝图确认与 Gate 4 终验，其余微观自愈由 Reviewer 接管。 |
 
 ## 9. 变更记录
 | 版本 | 变更类型 | 变更内容说明 | 评审人 |

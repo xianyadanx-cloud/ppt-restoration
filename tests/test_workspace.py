@@ -152,6 +152,28 @@ class TestPPTRestorationWorkspace(unittest.TestCase):
         builder.save(out_flex)
         self.assertTrue(os.path.exists(out_flex))
 
+    def test_multi_agent_evaluation_metrics(self):
+        from tools.eval_metrics import inspect_dom_picture_count, calculate_mse_and_ssim
+        from PIL import Image
+
+        # Test DOM picture count on clean PPTX
+        dom_res = inspect_dom_picture_count("output/test_flex_layout.pptx")
+        self.assertEqual(dom_res.get("status"), "PASS")
+        self.assertEqual(dom_res.get("picture_count"), 0)
+
+        # Test SSIM calculation
+        img1 = Image.new("RGB", (200, 200), color=(255, 255, 255))
+        img2 = Image.new("RGB", (200, 200), color=(255, 255, 255))
+        mse, ssim = calculate_mse_and_ssim(img1, img2)
+        self.assertEqual(ssim, 1.0)
+        self.assertEqual(mse, 0.0)
+
+    def test_orchestrator_cli(self):
+        import subprocess
+        # Test orchestrator status
+        res = subprocess.run([sys.executable, "tools/orchestrator.py", "status"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
