@@ -174,6 +174,12 @@ class TestPPTRestorationWorkspace(unittest.TestCase):
         res = subprocess.run([sys.executable, "tools/orchestrator.py", "status"], capture_output=True, text=True)
         self.assertEqual(res.returncode, 0)
 
+    def test_layout_linter(self):
+        from tools.layout_linter import audit_layout
+        res = audit_layout("output/slide_02.pptx")
+        self.assertTrue(res["passed"])
+        self.assertEqual(len(res["errors"]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

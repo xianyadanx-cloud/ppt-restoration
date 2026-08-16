@@ -1,6 +1,6 @@
 ---
-specId: "SPEC-FEAT-PPT-006"
-title: "任务执行清单 (Tasks): Multi-Agent 角色库、自动化质检与编排调度引擎"
+specId: "SPEC-FEAT-PPT-007"
+title: "任务执行清单 (Tasks): PPT 布局几何质检引擎与基准线自愈"
 version: "1.0"
 status: "已完成"
 last_updated: "2026-08-16"
@@ -11,8 +11,8 @@ authors: ["Antigravity", "feng.liu"]
 
 | 任务编号 | 阶段与任务目标 | 核心输出物 | Verify 验证命令 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
-| **T-01** | 创建专职 Agent 角色 Prompt 规范库 (`architect.md`, `developer.md`, `reviewer.md`) | `agent/roles/` | `ls agent/roles/` | `[x]` |
-| **T-02** | 实现确定性自动化质检与度量工具 `tools/eval_metrics.py` (SSIM, DOM, 结构化 JSON) | `tools/eval_metrics.py` | `python -m unittest tests/test_workspace.py -k test_multi_agent_evaluation_metrics` | `[x]` |
-| **T-03** | 实现端到端多 Agent 任务编排调度总线 `tools/orchestrator.py` | `tools/orchestrator.py` | `python tools/orchestrator.py status` | `[x]` |
-| **T-04** | 编写扩展单元测试套件覆盖多 Agent 评估与编排流水线 | `tests/test_workspace.py` | `python -m unittest tests/test_workspace.py` (11/11 全部通过) | `[x]` |
-| **T-05** | 同步更新 `README.md` 与 `docs/ARCHITECTURE.md`，回填 `eval.md` 和 `learnings.md` | `docs/`, `specs/` | `git status` | `[x]` |
+| **T-01** | 开发独立排版几何质检引擎 `tools/layout_linter.py` (双栏基准线/留白/字阶/行内居中) | `tools/layout_linter.py` | `python tools/layout_linter.py output/slide_02.pptx` | `[x]` |
+| **T-02** | 精修 `slides/build_slide_02.py`：锁齐左右两栏顶底基准线、压缩字阶、调整 KPI 间隙 | `slides/build_slide_02.py` | `python slides/build_slide_02.py -o output/slide_02.pptx` | `[x]` |
+| **T-03** | 运行 `tools/layout_linter.py` 对 `output/slide_02.pptx` 进行全量规则静态检查 | `output/slide_02.pptx` | `python tools/layout_linter.py output/slide_02.pptx` (全绿灯) | `[x]` |
+| **T-04** | 扩展 `tests/test_workspace.py` 覆盖 Layout Linter 单测并验证全套套件 | `tests/test_workspace.py` | `python -m unittest tests/test_workspace.py` (12/12 通过) | `[x]` |
+| **T-05** | 回填 `specs/eval.md` 和 `specs/learnings.md`，提交至本地分支 | `specs/` | `git status` | `[x]` |

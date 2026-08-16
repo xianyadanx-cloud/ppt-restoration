@@ -1,11 +1,11 @@
 """Slide 2 Modular Construction Script: 季度工作攻坚策略 (100% Native Block-by-Block Architecture)
 
 Architecture:
-- Block 1: `add_header_section(builder)` -> [35, 38, 930, 55] (Header & Author Tag)
-- Block 2: `add_summary_banner_section(builder)` -> [35, 108, 930, 75] (Top Overview Banner)
-- Block 3: `add_mid_kpi_section(builder)` -> [35, 192, 930, 110] (Efficiency Subtitle + 3 Composite KPI Cards)
-- Block 4: `add_clipboard_table_section(builder)` -> [35, 325, 435, 600] (Layered Clipboard + Table + 5 Progress Bars)
-- Block 5: `add_strategy_card_section(builder)` -> [485, 325, 480, 600] (2+1 Strategy Card + Action Cards + Footer Pills)
+- Block 1: `add_header_section(builder)` -> [26, 28, 948, 60] (Header & Author Tag)
+- Block 2: `add_summary_banner_section(builder)` -> [26, 104, 948, 64] (Top Overview Banner)
+- Block 3: `add_mid_kpi_section(builder)` -> [32, 198, 938, 96] (Efficiency Subtitle + 3 Composite KPI Cards)
+- Block 4: `add_clipboard_table_section(builder)` -> [32, 315, 438, 605] (Layered Clipboard + Table + 5 Progress Bars)
+- Block 5: `add_strategy_card_section(builder)` -> [486, 315, 484, 605] (2+1 Strategy Card + Action Cards + Footer Pills)
 """
 
 import os
@@ -15,7 +15,7 @@ from typing import List, Optional, Union
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from tools.pptx_helper import SlideBuilder
+from tools.pptx_helper import SlideBuilder, Tokens
 
 
 # ==============================================================================
@@ -23,21 +23,23 @@ from tools.pptx_helper import SlideBuilder
 # ==============================================================================
 def add_header_section(builder: SlideBuilder) -> None:
     """Render Block 1: Main Title, Underline Divider Line, and Author Watermark."""
-    # Main Title (GT measured: left=26, top=26, font_size=36pt, bold=True)
+    # Main Title (GT measured: left=26, top=28, font_size=28pt Bold)
     builder.add_textbox(
-        box=[26, 26, 600, 68],
+        box=[26, 28, 600, 52],
         text="季度工作攻坚策略",
-        font_size=36,
+        font_size=28,
+        auto_fit_font=True,
         font_color="#000000",
         bold=True,
     )
-    # Underline Accent Divider Line (GT measured: left=26, top=96, width=948)
-    builder.add_card(box=[26, 96, 948, 1.5], bg_color="#CBD5E1", border_color="transparent")
-    # Right Author Tag (GT measured: right-aligned, font_size=20pt, bold=True)
+    # Underline Accent Divider Line (GT measured: left=26, top=88, width=948, 0.75pt)
+    builder.add_card(box=[26, 88, 948, 1.0], bg_color="#CBD5E1", border_color="transparent")
+    # Right Author Tag (GT measured: right-aligned, font_size=14pt Bold)
     builder.add_textbox(
-        box=[720, 35, 254, 55],
+        box=[720, 38, 254, 40],
         text="@鱼丸PPT",
-        font_size=20,
+        font_size=14,
+        auto_fit_font=True,
         font_color="#000000",
         bold=True,
         align="right",
@@ -49,9 +51,9 @@ def add_header_section(builder: SlideBuilder) -> None:
 # ==============================================================================
 def add_summary_banner_section(builder: SlideBuilder) -> None:
     """Render Block 2: Top Overview Summary Banner with Gradient Badge and Structured Runs."""
-    # Outer Background Container (aligned with Block 1: left=26, width=948, top=112, height=72)
+    # Outer Background Container (aligned with Block 1: left=26, width=948, top=104, height=64)
     builder.add_card(
-        box=[26, 112, 948, 72],
+        box=[26, 104, 948, 64],
         bg_color="#EBF4FC",
         border_color="#D1E4F7",
         border_width_pt=1.0,
@@ -59,37 +61,37 @@ def add_summary_banner_section(builder: SlideBuilder) -> None:
     )
     # Left Gradient Deep Blue Badge
     builder.add_card(
-        box=[26, 112, 75, 72],
+        box=[26, 104, 70, 64],
         gradient_colors=["#1D63B8", "#2575D0"],
         gradient_angle=135.0,
         border_color="transparent",
         radius=True,
     )
     builder.add_textbox(
-        box=[26, 122, 75, 52],
+        box=[26, 114, 70, 44],
         text="总览\n概述",
-        font_size=14,
+        font_size=13,
         font_color="#FFFFFF",
         bold=True,
         align="center",
     )
-    # Right Rich Text Description (starts at left=112, width=848)
+    # Right Rich Text Description
     builder.add_textbox(
-        box=[112, 117, 850, 62],
+        box=[106, 108, 856, 56],
         runs=[
-            {"text": "本季度聚焦用户质量提升，核心指标达成率", "size": 11.5, "color": "#334155"},
-            {"text": "89%", "size": 11.5, "bold": True, "color": "#0F172A"},
-            {"text": "，同比增幅收窄至", "size": 11.5, "color": "#334155"},
-            {"text": "3%", "size": 11.5, "bold": True, "color": "#0F172A"},
-            {"text": "。通过重构活动投放策略，注册用户转化成本", "size": 11.5, "color": "#334155"},
-            {"text": "降低21%", "size": 11.5, "bold": True, "color": "#0F172A"},
-            {"text": "，但新客规模\n", "size": 11.5, "color": "#334155"},
-            {"text": "缺口达12%", "size": 11.5, "bold": True, "color": "#0F172A"},
-            {"text": "，付费转化率", "size": 11.5, "color": "#334155"},
-            {"text": "6.1%（目标6.5%）", "size": 11.5, "bold": True, "color": "#0F172A"},
-            {"text": "，运营成本", "size": 11.5, "color": "#334155"},
-            {"text": "降幅9%（目标15%）", "size": 11.5, "bold": True, "color": "#0F172A"},
-            {"text": "。", "size": 11.5, "color": "#334155"},
+            {"text": "本季度聚焦用户质量提升，核心指标达成率", "size": 11.0, "color": "#334155"},
+            {"text": "89%", "size": 11.0, "bold": True, "color": "#0F172A"},
+            {"text": "，同比增幅收窄至", "size": 11.0, "color": "#334155"},
+            {"text": "3%", "size": 11.0, "bold": True, "color": "#0F172A"},
+            {"text": "。通过重构活动投放策略，注册用户转化成本", "size": 11.0, "color": "#334155"},
+            {"text": "降低21%", "size": 11.0, "bold": True, "color": "#0F172A"},
+            {"text": "，但新客规模\n", "size": 11.0, "color": "#334155"},
+            {"text": "缺口达12%", "size": 11.0, "bold": True, "color": "#0F172A"},
+            {"text": "，付费转化率", "size": 11.0, "color": "#334155"},
+            {"text": "6.1%（目标6.5%）", "size": 11.0, "bold": True, "color": "#0F172A"},
+            {"text": "，运营成本", "size": 11.0, "color": "#334155"},
+            {"text": "降幅9%（目标15%）", "size": 11.0, "bold": True, "color": "#0F172A"},
+            {"text": "。", "size": 11.0, "color": "#334155"},
         ],
     )
 
@@ -99,149 +101,81 @@ def add_summary_banner_section(builder: SlideBuilder) -> None:
 # ==============================================================================
 def add_mid_kpi_section(builder: SlideBuilder) -> None:
     """Render Block 3: Subtitle, Descriptive Summary, and 3 Stacked KPI Metric Cards with Flow Arrows."""
-    # Left Subtitle & Text
+    # Left Subtitle & Text (top: 198)
     builder.add_textbox(
-        box=[35, 205, 440, 30],
+        box=[32, 198, 440, 28],
         text="多维度运营效能透视",
-        font_size=18,
+        font_size=16,
         font_color="#0F172A",
         bold=True,
     )
     builder.add_textbox(
-        box=[35, 238, 440, 56],
+        box=[32, 228, 440, 52],
         runs=[
-            {"text": "推行精准获客策略后，高净值用户占比突破", "size": 10.5, "color": "#64748B"},
-            {"text": "40%（+8pp）", "size": 10.5, "bold": True, "color": "#334155"},
-            {"text": "，但新用户总量仅达成\n", "size": 10.5, "color": "#64748B"},
-            {"text": "38万（目标45万）", "size": 10.5, "bold": True, "color": "#334155"},
-            {"text": "。会员权益升级拉动复购率提升至", "size": 10.5, "color": "#64748B"},
-            {"text": "19%（目标22%）", "size": 10.5, "bold": True, "color": "#334155"},
+            {"text": "推行精准获客策略后，高净值用户占比突破", "size": 10.0, "color": "#64748B"},
+            {"text": "40%（+8pp）", "size": 10.0, "bold": True, "color": "#334155"},
+            {"text": "，但新用户总量仅达成\n", "size": 10.0, "color": "#64748B"},
+            {"text": "38万（目标45万）", "size": 10.0, "bold": True, "color": "#334155"},
+            {"text": "。会员权益升级拉动复购率提升至", "size": 10.0, "color": "#64748B"},
+            {"text": "19%（目标22%）", "size": 10.0, "bold": True, "color": "#334155"},
         ],
     )
 
-    # --- KPI Card 1: 规模缺口 ---
-    builder.add_card(
-        box=[515, 192, 125, 105],
+    # Right 3 columns grid for KPI cards (top: 198, height: 96, gap_x: 32)
+    grid_boxes = builder.add_grid(box=[505, 198, 465, 96], cols=3, rows=1, gap_x=32)
+
+    # KPI 1
+    builder.add_kpi_card(
+        box=grid_boxes[0],
+        top_tag="规模缺口",
+        value="38万",
+        bottom_badge="缺口16%",
+        theme_color="#0284C7",
         bg_color="#F4F9FF",
         border_color="#BAE6FD",
-        border_width_pt=1.0,
-        radius=True,
+        tag_bg="#FFFFFF"
     )
+    # Arrow 1
     builder.add_badge(
-        box=[537, 180, 80, 24],
-        text="规模缺口",
-        bg_color="#FFFFFF",
-        text_color="#0284C7",
-        border_color="#60A5FA",
-        border_width_pt=1.0,
-        font_size=8.5,
-        bold=True,
-    )
-    builder.add_textbox(
-        box=[515, 212, 125, 42],
-        text="38万",
-        font_size=23,
-        font_color="#0F172A",
-        bold=True,
-        align="center",
-    )
-    builder.add_badge(
-        box=[532, 262, 90, 24],
-        text="缺口16%",
-        bg_color="#3B82F6",
-        text_color="#FFFFFF",
-        font_size=8.5,
-        bold=True,
-    )
-
-    # Flow Arrow 1
-    builder.add_badge(
-        box=[652, 236, 22, 22],
+        box=[644, 235, 20, 20],
         text="➔",
         gradient_colors=["#60A5FA", "#2563EB"],
         text_color="#FFFFFF",
-        font_size=10,
+        font_size=9,
         bold=True,
     )
 
-    # --- KPI Card 2: 转化迟滞 ---
-    builder.add_card(
-        box=[685, 192, 125, 105],
+    # KPI 2
+    builder.add_kpi_card(
+        box=grid_boxes[1],
+        top_tag="转化迟滞",
+        value="6.1%",
+        bottom_badge="缺口0.4pp",
+        theme_color="#0284C7",
         bg_color="#F4F9FF",
         border_color="#BAE6FD",
-        border_width_pt=1.0,
-        radius=True,
+        tag_bg="#FFFFFF"
     )
+    # Arrow 2
     builder.add_badge(
-        box=[707, 180, 80, 24],
-        text="转化迟滞",
-        bg_color="#FFFFFF",
-        text_color="#0284C7",
-        border_color="#60A5FA",
-        border_width_pt=1.0,
-        font_size=8.5,
-        bold=True,
-    )
-    builder.add_textbox(
-        box=[685, 212, 125, 42],
-        text="6.1%",
-        font_size=23,
-        font_color="#0F172A",
-        bold=True,
-        align="center",
-    )
-    builder.add_badge(
-        box=[702, 262, 90, 24],
-        text="缺口0.4pp",
-        bg_color="#3B82F6",
-        text_color="#FFFFFF",
-        font_size=8.5,
-        bold=True,
-    )
-
-    # Flow Arrow 2
-    builder.add_badge(
-        box=[822, 236, 22, 22],
+        box=[812, 235, 20, 20],
         text="➔",
         gradient_colors=["#F87171", "#DC2626"],
         text_color="#FFFFFF",
-        font_size=10,
+        font_size=9,
         bold=True,
     )
 
-    # --- KPI Card 3: 成本刚性 ---
-    builder.add_card(
-        box=[852, 192, 120, 105],
+    # KPI 3
+    builder.add_kpi_card(
+        box=grid_boxes[2],
+        top_tag="成本刚性",
+        value="9%降幅",
+        bottom_badge="缺口6pp",
+        theme_color="#DC2626",
         bg_color="#FEF5F5",
         border_color="#FECACA",
-        border_width_pt=1.0,
-        radius=True,
-    )
-    builder.add_badge(
-        box=[872, 180, 80, 24],
-        text="成本刚性",
-        bg_color="#FFFFFF",
-        text_color="#DC2626",
-        border_color="#F87171",
-        border_width_pt=1.0,
-        font_size=8.5,
-        bold=True,
-    )
-    builder.add_textbox(
-        box=[852, 212, 120, 42],
-        text="9%降幅",
-        font_size=21,
-        font_color="#0F172A",
-        bold=True,
-        align="center",
-    )
-    builder.add_badge(
-        box=[867, 262, 90, 24],
-        text="缺口6pp",
-        bg_color="#DC2626",
-        text_color="#FFFFFF",
-        font_size=8.5,
-        bold=True,
+        tag_bg="#FFFFFF"
     )
 
 
@@ -250,9 +184,9 @@ def add_mid_kpi_section(builder: SlideBuilder) -> None:
 # ==============================================================================
 def add_clipboard_table_section(builder: SlideBuilder) -> None:
     """Render Block 4: Layered Clipboard Container, Native Data Table, and 5 Glowing Progress Bars."""
-    # 1. Clipboard Baseplate (Gradient Royal Blue with Subtle Rounded Corners)
+    # Baseline locked: left=32, top=315, width=438, height=605 (bottom=920)
     builder.add_card(
-        box=[35, 308, 438, 640],
+        box=[32, 315, 438, 605],
         gradient_colors=["#1E5AA0", "#2B78C9"],
         gradient_angle=135.0,
         border_color="#154A85",
@@ -261,90 +195,68 @@ def add_clipboard_table_section(builder: SlideBuilder) -> None:
     )
 
     # Top Metallic Clip Accent (3-Layer Photorealistic Clip)
-    # Layer 1: Dark Slate Base Plate
-    builder.add_card(
-        box=[205, 295, 95, 20],
-        bg_color="#64748B",
-        border_color="#475569",
-        border_width_pt=1.0,
-        radius=True,
-    )
-    # Layer 2: Metallic Silver Plate
-    builder.add_card(
-        box=[212, 299, 81, 14],
-        bg_color="#E2E8F0",
-        border_color="#94A3B8",
-        border_width_pt=0.8,
-        radius=True,
-    )
-    # Layer 3: Inner Hanging Slot Hole
-    builder.add_card(
-        box=[238, 303, 29, 6],
-        bg_color="#475569",
-        border_color="transparent",
-        radius=True,
-    )
+    builder.add_card(box=[205, 303, 92, 18], bg_color="#64748B", border_color="#475569", border_width_pt=1.0, radius=True)
+    builder.add_card(box=[212, 306, 78, 12], bg_color="#E2E8F0", border_color="#94A3B8", border_width_pt=0.8, radius=True)
+    builder.add_card(box=[238, 309, 26, 6], bg_color="#475569", border_color="transparent", radius=True)
 
-    # 2. Inner White Paper Sheet
+    # Inner White Paper Sheet (box: [40, 323, 422, 589])
     builder.add_card(
-        box=[44, 318, 420, 620],
+        box=[40, 323, 422, 589],
         bg_color="#FFFFFF",
         border_color="#CBD5E1",
         border_width_pt=1.0,
         radius=True,
     )
 
-    # Paper Title: 核心战役完成度全景 (Strictly Centered, 20pt Heavy Bold at y: 336)
+    # Paper Title: 核心战役完成度全景 (Strictly Centered, font_size=18 Bold at y: 338)
     builder.add_textbox(
-        box=[44, 336, 420, 36],
+        box=[40, 338, 422, 32],
         text="核心战役完成度全景",
-        font_size=20,
+        font_size=18,
+        auto_fit_font=True,
         font_color="#0F172A",
         bold=True,
         align="center",
     )
 
-    # 3. Glossy Table Header Bar (Vibrant Linear Gradient at y: 378)
+    # Glossy Table Header Bar (at y: 376)
     builder.add_card(
-        box=[52, 378, 404, 38],
+        box=[48, 376, 406, 36],
         gradient_colors=["#428BD6", "#165096"],
         gradient_angle=90.0,
         radius=True,
         border_color="#18529C",
         border_width_pt=0.8,
     )
-    # Header Column Titles (Crisp 12pt Bold White Text)
-    # Col 1: Left-aligned with 14px margin
-    builder.add_textbox(box=[66, 383, 80, 28], text="项目名称", font_size=12, font_color="#FFFFFF", bold=True, align="left")
-    # Col 2 & 3: Centered
-    builder.add_textbox(box=[146, 383, 52, 28], text="目标值", font_size=12, font_color="#FFFFFF", bold=True, align="center")
-    builder.add_textbox(box=[198, 383, 52, 28], text="实际值", font_size=12, font_color="#FFFFFF", bold=True, align="center")
-    # Col 4: Centered over progress bars
-    builder.add_textbox(box=[250, 383, 206, 28], text="整体完成率", font_size=12, font_color="#FFFFFF", bold=True, align="center")
+    # Header Column Titles (Crisp 11.5pt Bold White Text)
+    builder.add_textbox(box=[62, 381, 80, 26], text="项目名称", font_size=11.5, font_color="#FFFFFF", bold=True, align="left")
+    builder.add_textbox(box=[142, 381, 52, 26], text="目标值", font_size=11.5, font_color="#FFFFFF", bold=True, align="center")
+    builder.add_textbox(box=[194, 381, 52, 26], text="实际值", font_size=11.5, font_color="#FFFFFF", bold=True, align="center")
+    builder.add_textbox(box=[246, 381, 202, 26], text="整体完成率", font_size=11.5, font_color="#FFFFFF", bold=True, align="center")
 
-    # 4. Zebra Row 2 & Row 4 Background Cards (Soft Peach with Rounded Corners)
-    builder.add_card(box=[52, 490, 404, 60], bg_color="#FEF2F0", border_color="transparent", radius=True)
-    builder.add_card(box=[52, 626, 404, 60], bg_color="#FEF2F0", border_color="transparent", radius=True)
+    # Zebra Row 2 & Row 4 Background Cards (Soft Peach)
+    builder.add_card(box=[48, 484, 406, 56], bg_color="#FEF2F0", border_color="transparent", radius=True)
+    builder.add_card(box=[48, 612, 406, 56], bg_color="#FEF2F0", border_color="transparent", radius=True)
 
-    # 5. 5 Data Rows: Labels (Left Aligned), Targets (Centered), Actuals (Centered), and Progress Bars
+    # 5 Data Rows: Labels, Targets, Actuals, and Progress Bars with strict vertical centering
     rows_data = [
-        ("新用户招募", "45万", "38万", 0.84, "84%", 426),
-        ("用户留存率", "70%", "69%", 0.99, "99%", 494),
-        ("活动ROI", "1:5", "1:4:2", 0.84, "84%", 562),
-        ("响应时效", "2.5h", "2.1h", 0.82, "82%", 630),
-        ("用户调研量", "2500", "1620", 0.65, "65%", 698),
+        ("新用户招募", "45万", "38万", 0.84, "84%", 424),
+        ("用户留存率", "70%", "69%", 0.99, "99%", 488),
+        ("活动ROI", "1:5", "1:4:2", 0.84, "84%", 552),
+        ("响应时效", "2.5h", "2.1h", 0.82, "82%", 616),
+        ("用户调研量", "2500", "1620", 0.65, "65%", 680),
     ]
 
     for name_lbl, target_lbl, actual_lbl, pct_val, text_pct, y_start in rows_data:
-        # Col 1: Name (Strictly LEFT-ALIGNED at x: 66, matching Header)
-        builder.add_textbox(box=[66, y_start + 8, 80, 30], text=name_lbl, font_size=12, font_color="#334155", align="left")
-        # Col 2: Target (Centered at x: 146)
-        builder.add_textbox(box=[146, y_start + 8, 52, 30], text=target_lbl, font_size=12, font_color="#334155", align="center")
-        # Col 3: Actual (Centered at x: 198)
-        builder.add_textbox(box=[198, y_start + 8, 52, 30], text=actual_lbl, font_size=12, font_color="#334155", align="center")
-        # Col 4: Progress Bar + Percent Label
+        # Col 1: Name (Left Aligned)
+        builder.add_textbox(box=[62, y_start + 6, 80, 28], text=name_lbl, font_size=11.5, font_color="#334155", align="left")
+        # Col 2: Target (Centered)
+        builder.add_textbox(box=[142, y_start + 6, 52, 28], text=target_lbl, font_size=11.5, font_color="#334155", align="center")
+        # Col 3: Actual (Centered)
+        builder.add_textbox(box=[194, y_start + 6, 52, 28], text=actual_lbl, font_size=11.5, font_color="#334155", align="center")
+        # Col 4: Progress Bar + Percent Label (Vertically Centered with Text)
         builder.add_progress_bar(
-            box=[252, y_start + 15, 148, 16],
+            box=[248, y_start + 12, 146, 16],
             pct=pct_val,
             text=text_pct,
             bar_color="#C2410C",
@@ -352,135 +264,115 @@ def add_clipboard_table_section(builder: SlideBuilder) -> None:
             gradient_angle=90.0,
             bg_color="#FCE6DC",
             node_glow=True,
-            font_size=11,
+            font_size=10.5,
             text_color="#9A3412",
         )
 
 
 # ==============================================================================
-# BLOCK 5: Bottom Right Strategy Card (2+1 破局行动战略大卡 - 100% 还原原图)
+# BLOCK 5: Bottom Right Strategy Card (2+1 破局行动战略大卡 - 顶底严格锁齐)
 # ==============================================================================
 def add_strategy_card_section(builder: SlideBuilder) -> None:
-    """Render Block 5: 2+1 Strategy Card with separate title strips on white card surface."""
-    # 1. Outer Container Card (Pure White card with subtle blue border)
+    """Render Block 5: 2+1 Strategy Card with baseline locked to Block 4."""
+    # Baseline locked: left=486, top=315, width=484, height=605 (bottom=920)
     builder.add_card(
-        box=[480, 318, 494, 602],
+        box=[486, 315, 484, 605],
         bg_color="#FFFFFF",
         border_color="#BAE6FD",
         border_width_pt=1.2,
         radius=True,
     )
 
-    # 2. Top Blue Gradient Header Bar (Horizontal Gradient: #2167BA -> #589CE3)
+    # Top Blue Gradient Header Bar (Horizontal Gradient: #2167BA -> #589CE3)
     builder.add_card(
-        box=[480, 318, 494, 82],
+        box=[486, 315, 484, 76],
         gradient_colors=["#2167BA", "#589CE3"],
         gradient_angle=0.0,
         border_color="transparent",
         radius=True,
     )
 
-    # Strategy Title: "2+1" (Huge Bold White 42pt) + "破局行动" (Bold White 23pt)
-    builder.add_textbox(box=[492, 322, 88, 76], text="2+1", font_size=42, font_color="#FFFFFF", bold=True)
-    builder.add_textbox(box=[580, 336, 120, 52], text="破局行动", font_size=23, font_color="#FFFFFF", bold=True)
-    
+    # Strategy Title: "2+1" (Bold White 38pt) + "破局行动" (Bold White 22pt)
+    builder.add_textbox(box=[496, 320, 84, 66], text="2+1", font_size=38, font_color="#FFFFFF", bold=True)
+    builder.add_textbox(box=[580, 332, 116, 46], text="破局行动", font_size=21, font_color="#FFFFFF", bold=True)
+
     # Right Quote Pill Badge
     builder.add_badge(
-        box=[705, 340, 256, 38],
+        box=[702, 336, 256, 36],
         text="“在裂缝中寻找光，向结构要效率！”",
         bg_color="#143E75",
         text_color="#FFFFFF",
-        font_size=10,
+        font_size=9.5,
         bold=True,
     )
 
-    # 3. Action Section 1
-    # 3.1 仅标题行有淡蓝条形底板 (Title Strip)
-    builder.add_card(
-        box=[488, 412, 474, 38],
+    # Action Section 1 (box: [494, 405, 468, 96])
+    builder.add_flex_card(
+        box=[494, 405, 468, 96],
+        badge="1",
+        badge_bg="#1456AA",
+        badge_color="#FFFFFF",
+        title="流量重构-突破渠道瓶颈",
+        body_items=[
+            "阶梯式缩量: 对低效渠道实施每周10%的预算递减机制",
+            "建立新渠道试投池: 定向开发KOC种草、垂直社区等新型渠道，首批测试ROI达1:4.5"
+        ],
         bg_color="#EDF6FD",
         border_color="transparent",
         radius=True,
     )
-    builder.add_badge(
-        box=[494, 416, 30, 30],
-        text="1",
-        bg_color="#1456AA",
-        text_color="#FFFFFF",
-        font_size=13,
-        bold=True,
-    )
-    builder.add_textbox(
-        box=[532, 416, 425, 30],
-        text="流量重构-突破渠道瓶颈",
-        font_size=15,
-        font_color="#0F172A",
-        bold=True,
-    )
-    # 3.2 正文子弹项 (直接排在纯白底板上，无底卡包裹)
-    builder.add_textbox(box=[500, 456, 600, 22], text="• 阶梯式缩量: 对低效渠道实施每周10%的预算递减机制", font_size=10.5, font_color="#334155", word_wrap=False)
-    builder.add_textbox(box=[500, 482, 600, 22], text="• 建立新渠道试投池: 定向开发KOC种草、垂直社区等新型渠道，首批测试ROI达1:4.5", font_size=10.5, font_color="#334155", word_wrap=False)
 
-    # 4. Action Section 2
-    # 4.1 仅标题行有淡蓝条形底板 (Title Strip)
-    builder.add_card(
-        box=[488, 518, 474, 38],
+    # Action Section 2 (box: [494, 515, 468, 96])
+    builder.add_flex_card(
+        box=[494, 515, 468, 96],
+        badge="2",
+        badge_bg="#1456AA",
+        badge_color="#FFFFFF",
+        title="触点再造 - 激活沉默资产",
+        body_items=[
+            "黄金72小时: 对高价值用户推送专属权益包（含¥50无门槛券+会员体验）",
+            "周期性刺激: 对中频用户每月推送品类专属优惠（美妆/母婴等定向满减）"
+        ],
         bg_color="#EDF6FD",
         border_color="transparent",
         radius=True,
     )
-    builder.add_badge(
-        box=[494, 522, 30, 30],
-        text="2",
-        bg_color="#1456AA",
-        text_color="#FFFFFF",
-        font_size=13,
-        bold=True,
-    )
-    builder.add_textbox(
-        box=[532, 522, 425, 30],
-        text="触点再造 - 激活沉默资产",
-        font_size=15,
-        font_color="#0F172A",
-        bold=True,
-    )
-    # 4.2 正文子弹项 (直接排在纯白底板上，无底卡包裹)
-    builder.add_textbox(box=[500, 562, 600, 22], text="• 黄金72小时: 对高价值用户推送专属权益包（含¥50无门槛券+会员体验）", font_size=10.5, font_color="#334155", word_wrap=False)
-    builder.add_textbox(box=[500, 588, 600, 22], text="• 周期性刺激: 对中频用户每月推送品类专属优惠（美妆/母婴等定向满减）", font_size=10.5, font_color="#334155", word_wrap=False)
 
-
-    # 5. Bottom Footer Container Bar
+    # Bottom Footer Container Bar (box: [486, 848, 484, 64])
     builder.add_card(
-        box=[480, 842, 494, 68],
+        box=[486, 848, 484, 64],
         bg_color="#EBF4FC",
         border_color="transparent",
         radius=True,
     )
 
-    # 6. Bottom Strategy Keyword Badges (Balanced distribution across 470px span)
+    # Bottom Title Badge
     builder.add_badge(
-        box=[492, 856, 146, 38],
+        box=[496, 860, 142, 38],
         text="在存量战场挖掘增量价值",
         bg_color="#1D63B8",
         text_color="#FFFFFF",
-        font_size=9.5,
+        font_size=9.0,
         bold=True,
     )
-    pills = ["渠道洗牌", "沉默唤醒", "成本攻坚", "精准刀法"]
-    for i, p_txt in enumerate(pills):
+
+    # Bottom 4 Keyword Pills: using add_grid for perfectly even distribution
+    pill_boxes = builder.add_grid(box=[646, 860, 316, 38], cols=4, rows=1, gap_x=8.0)
+    keywords = ["渠道洗牌", "沉默唤醒", "成本攻坚", "精准刀法"]
+    for idx, p_box in enumerate(pill_boxes):
         builder.add_badge(
-            box=[648 + i * 82, 856, 72, 38],
-            text=p_txt,
+            box=list(p_box),
+            text=keywords[idx],
             bg_color="#FFFFFF",
-            border_color="#93C5FD",
             text_color="#1E40AF",
-            font_size=9.5,
+            border_color="#93C5FD",
+            font_size=8.5,
             bold=True,
         )
 
 
 # ==============================================================================
-# MAIN COMPOSER: build_slide_02 (Modular Assembly & Isolated Block Debugging)
+# MAIN COMPOSER: build_slide_02
 # ==============================================================================
 def build_slide_02(
     active_blocks: Optional[List[str]] = None,

@@ -1,54 +1,48 @@
 ---
-specId: "SPEC-FEAT-PPT-006"
-title: "需求规格说明书 (PRD): Multi-Agent 角色库、自动化质检与编排调度引擎"
+specId: "SPEC-FEAT-PPT-007"
+title: "需求规格说明书 (PRD): PPT 布局几何质检引擎 (Layout Linter) 与像素级基准线自愈"
 version: "1.0"
 status: "已批准"
 last_updated: "2026-08-16"
 authors: ["Antigravity", "feng.liu"]
 ---
 
-# 需求规格说明书 (PRD): Multi-Agent 角色库、自动化质检与编排调度引擎
+# 需求规格说明书 (PRD): PPT 布局几何质检引擎 (Layout Linter) 与像素级基准线自愈
 
-> **目标**：将单 Agent 串行流程解耦为基于结构化文件协议驱动的 Multi-Agent 协作网络，大幅降低人工打扰频次（从 15 次降至 2 次），实现干净上下文代码生成与自动化视觉质检自愈。
+> **目标**：彻底解决自动化质检在多栏高低差、底部贴边、字号失衡、行内进度条垂直偏差等排版微观错位上的“失明”问题，建立严密的静态几何断言规则库，并彻底自愈修复 Slide 02。
 
 ---
 
 ## 🎯 1. 业务价值与用户故事 (User Stories)
 
-### [US-01] 专职 Agent 角色 Prompt 规范库 (`agent/roles/`)
-* **需求描述**：明确定义 3 大独立 Agent 角色的系统 Prompt 与任务契约：
-  - `architect.md`：宏观感知与分块蓝图规划师（负责 Gate 1 & Gate 2，输出 `blueprint.json`）。
-  - `developer.md`：单 Block 纯代码生成专家（接收单个 Block Spec 与 API 参考，输出独立的 Python Block 函数）。
-  - `reviewer.md`：多模态视觉 QA 与自愈驱动专家（比对 Slice Diff，分析 DOM 结构，输出结构化 `review_report.json`）。
-* **验收标准**：每个角色 Prompt 包含严密的输入/输出契约、行为边界与错误处理规范。
+### [US-01] 静态几何约束质检引擎 (`tools/layout_linter.py`)
+* **需求描述**：开发独立的排版 Linter 工具，直接扫描 `.pptx` 的 OpenXML DOM 树，自动断言以下硬性设计规则：
+  - **Rule 1 (双栏顶底基准线对齐)**：同行的左右主容器，`top` 偏差 $\le 2\text{px}$，`bottom` 偏差 $\le 3\text{px}$；
+  - **Rule 2 (底部安全呼吸留白)**：任何容器的 `top + height \le 930`（底部保留 $\ge 70\text{px}$ 呼吸空间）；
+  - **Rule 3 (字阶梯度合理性)**：主标题字号 $\in [26, 32]\text{pt}$，作者水印 $\le 16\text{pt}$；
+  - **Rule 4 (表格行内垂直居中)**：每行文字垂直中心线与进度条胶囊垂直中心线偏差 $\le 1.5\text{px}$；
+  - **Rule 5 (药丸阵列均匀分布)**：底部横向药丸阵列右边缘不得超出主容器右边界。
+* **验收标准**：检测到任何一项违规立即以非零状态码退出并打印具体偏差数值。
 
-### [US-02] 自动化质检与度量工具 (`tools/eval_metrics.py`)
-* **需求描述**：提供确定性质检工具，无需人工肉眼比对即可自动化评估局部和全局渲染质量。
-* **验收标准**：
-  - 计算生成图与原图的 **SSIM 结构相似度** 与 **均方误差 (MSE)**；
-  - 提取 DOM 结构并严格验证 `PICTURE` 计数为 0；
-  - 自动输出结构化评分报告 `review_report.json`（包含 passed 状态、ssim 评分、缺陷列表）。
-
-### [US-03] 端到端多 Agent 任务编排调度总线 (`tools/orchestrator.py`)
-* **需求描述**：实现多 Agent 的调度与状态机引擎，支持命令行一键运行：
-  - 模式 1：`python tools/orchestrator.py plan input/demo.png`（调用 Architect 生成蓝图并呈报确认）。
-  - 模式 2：`python tools/orchestrator.py run input/demo.png`（按拓扑顺序调度 Developer 独立编码与 Reviewer 自动化自愈，支持最大自愈次数限制）。
-  - 模式 3：`python tools/orchestrator.py assemble input/demo.png`（全页组装与终验交付）。
-* **验收标准**：
-  - 任务状态机清晰（PLANNING -> REVIEWING_BLUEPRINT -> EXECUTING_BLOCKS -> ASSEMBLING -> DONE）；
-  - 自动管理上下文隔离与产物拼装。
+### [US-02] Slide 02 像素级基准线与比例全量自愈
+* **需求描述**：根据 Linter 规则彻底修正 `slides/build_slide_02.py`：
+  - 修正 Block 1：主标题调整为 28pt Bold，作者标识调整为 14pt Bold，分割线调整为 0.75pt 极细浅灰；
+  - 修正 Block 2：总览横幅高度收敛至 64px，文字行距自然舒适；
+  - 修正 Block 3：KPI 卡片 `top: 198`，外凸药丸 `top: 186`，与上方横幅保持标准 16px 留白；
+  - 修正 Block 4 & 5：左侧拟物板夹 `[32, 315, 438, 610]` 与右侧战略大卡 `[486, 315, 482, 610]` 顶底 100% 锁齐，两栏中缝 gap: 16px；
+  - 修正表格 5 行进度条在单元格内垂直居中；底部 4 药丸均分排列。
+* **验收标准**：`layout_linter.py` 全绿灯通过，DOM PICTURE=0，单元测试全部通过。
 
 ---
 
 ## 🚫 2. 盲区确认表与不改清单 (Non-Goals)
 | 事项 | 裁决状态 | 裁决依据与处理方式 |
 | :--- | :--- | :--- |
-| **0-1000 坐标系** | **坚决保留** | 所有 Agent 角色与中介 JSON 必须严格遵循 0-1000 坐标系。 |
-| **自愈上限熔断** | **设为 3 次** | 单 Block 自动自愈上限 3 次，防止不可解异常陷入死循环。 |
-| **人机交互节点** | **保留 2 次** | 仅保留 Gate 2 蓝图确认与 Gate 4 终验，其余微观自愈由 Reviewer 接管。 |
+| **0-1000 坐标系** | **坚决保留** | 所有 Linter 规则与自愈脚本严格基于 0-1000 归一化坐标系。 |
+| **PICTURE 恒为 0** | **绝对强制** | 100% 保持纯原生矢量渲染。 |
+| **自动化集成** | **纳入 Gate 4** | Linter 成为 Gate 4 自动化终验的阻断式卡点。 |
 
 ## 9. 变更记录
 | 版本 | 变更类型 | 变更内容说明 | 评审人 |
 | :--- | :--- | :--- | :--- |
-| **2026-08-16** | 变更调优 | 单元测试同步校验 | Agent/Human |
 | **2026-08-16** | 变更调优 | 单元测试同步校验 | Agent/Human |
