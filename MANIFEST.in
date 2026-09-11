@@ -1,0 +1,5 @@
+include README.md AGENTS.md SKILL.md
+recursive-include docs *.md
+recursive-include tests *.py
+recursive-include src/ppt_restore/resources *.md *.swift
+global-exclude __pycache__ *.py[cod] .DS_Store

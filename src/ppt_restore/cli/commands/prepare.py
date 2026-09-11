@@ -1,0 +1,23 @@
+"""Unified ``pptrestore`` command line interface.
+
+Commands intentionally compose small core APIs.  Platform-specific rendering
+and optimization modules are imported only for the command that needs them.
+"""
+
+from __future__ import annotations
+
+import json
+
+from ppt_restore.pipeline.workflow import prepare_case
+
+
+def run(args):
+    result = prepare_case(
+        args.input,
+        args.case_dir,
+        page_index=args.page_index,
+        primary_renderer=args.primary_renderer,
+        ocr_mode=args.ocr,
+    )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result.get("registration", {}).get("confidence", 0.0) >= 0.90 else 1

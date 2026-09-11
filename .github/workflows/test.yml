@@ -1,0 +1,42 @@
+name: Package and test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.9'
+          - os: ubuntu-latest
+            python: '3.12'
+          - os: windows-latest
+            python: '3.12'
+          - os: macos-latest
+            python: '3.12'
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - name: Install and test wheel outside checkout
+        shell: python
+        run: |
+          import os, pathlib, shutil, subprocess, sys, tempfile
+          repository = pathlib.Path.cwd()
+          wheel = next((repository / 'dist').glob('*.whl'))
+          subprocess.run([sys.executable, '-m', 'pip', 'install', str(wheel)], check=True)
+          with tempfile.TemporaryDirectory() as directory:
+              work = pathlib.Path(directory)
+              shutil.copytree(repository / 'tests', work / 'tests')
+              os.chdir(work)
+              subprocess.run([sys.executable, '-I', '-m', 'ppt_restore', '--help'], check=True)
+              subprocess.run([sys.executable, '-I', '-m', 'unittest', 'discover', '-s', 'tests', '-q'], check=True)
