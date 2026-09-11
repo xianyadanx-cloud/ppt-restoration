@@ -1,106 +1,109 @@
-# PPT Restoration Workspace (高保真 PPT 智能还原工作空间)
+# Image to PowerPoint
 
-> **基于 SDD（规范驱动开发）与 4 门禁 SOP 的 AI Coding Agent 演示文稿高保真还原系统**
+将图片或 PDF 页面还原为可编辑的 PowerPoint，提供标准化、SceneSpec v2 校验、原生编译、逐块审核和内容对账。
 
-本项目提供了一套面向 AI Coding Agent（如 Claude Code, Cursor, Aider, Antigravity）的工程化 PPT 还原基础设施。将图片/PDF 转化为 **100% 原生可二次编辑、兼具 3D 拟态质感与数据可视化** 的 PowerPoint（`.pptx`）文件。
+**这是供多模态 Agent 使用的本地工具。** 图片识别由你使用的 Agent 完成；Python 程序不内置模型、不调用模型 API、不包含密钥。单独运行命令不会自动识别整张图片并完成还原。
 
----
+## 安装
 
-## 🗂️ 核心目录架构与职责划分
+从 GitHub 下载 ZIP 并解压，或克隆仓库，进入包含本文件的目录：
 
-工作空间对 **“Agent 体系”**、**“开发规范体系”** 与 **“工程文档”** 进行了明确解耦与分层组织：
-
-```
-workspace/
-├── agent/                       # 🤖 Agent 体系 (Prompt 库、Skill 契约与操作 SOP)
-│   ├── AGENTS.md                # Agent 标准操作流程 (4 大质量门禁、0-1000 坐标系)
-│   ├── SKILL.md                 # Agent Skill 契约规范与触发指令
-│   └── prompts/                 # SDD 阶段流转的标准 Agent Prompt 模板
-│       ├── 01_draft_spec.md
-│       ├── 02_draft_plan_eval.md
-│       ├── 03_draft_tasks.md
-│       ├── 04_execute_tasks.md
-│       └── 05_synthesize_learnings.md
-│
-├── docs/                        # 📚 人类与 Agent 共享的技术参考
-│   ├── ARCHITECTURE.md          # 整体系统架构与 Multi-Agent 演进设计
-│   ├── API_REFERENCE.md         # SlideBuilder 引擎与 tools 工具链完整 API
-│   └── CONTRIBUTING.md          # 本地运行、单测与添加新案例指南
-│
-├── specs/                       # 📋 开发规范体系 (SDD 规范驱动开发体系)
-│   ├── SDD_GUIDE.md             # SDD 工作流与评审门禁指南
-│   ├── templates/               # 五大规范模板库
-│   │   ├── spec.template.md     # 需求理解与消歧模板
-│   │   ├── plan.template.md     # 技术架构与不改清单模板
-│   │   ├── tasks.template.md    # 任务拆解与 verify 命令模板
-│   │   ├── eval.template.md     # 评测矩阵与验收模板
-│   │   └── learnings.template.md# 经验沉淀与复盘模板
-│   └── current/                 # 当前还原任务的 SDD 交付归档
-│       ├── spec.md              # 需求规格说明书 (US-01~US-05)
-│       ├── plan.md              # 4层分层架构与不改清单
-│       ├── tasks.md             # 确定性任务执行链
-│       ├── eval.md              # 验收评测矩阵 (【通过】)
-│       └── learnings.md         # 认知沉淀与工程经验 (L-01~L-04)
-│
-├── tools/                       # 🛠️ Agent 工具箱与排版引擎
-│   ├── pptx_helper.py           # 核心 SlideBuilder 引擎 (0-1000坐标, 进度条, KPI卡, 渐变色)
-│   ├── icon_fetcher.py          # 在线矢量图标库检索与主题色注入
-│   ├── slice.py                 # 0-1000 归一化局部高精度切片工具
-│   ├── render_and_diff.py       # 4级渲染回退自检与双图视觉比对器
-│   ├── inspect_pptx.py          # PPTX DOM 树结构深度检查器
-│   ├── merge.py                 # 多单页 PPTX 合并工具
-│   ├── extract_pdf.py           # PDF 页面拆分工具
-│   └── init_deck.py             # 幻灯片构建脚手架生成器
-│
-├── slides/                      # 🎨 幻灯片构建代码 (业务实现)
-│   ├── build_slide_01.py        # Slide 1 (3D 折页书本 + 6 组对比卡片)
-│   └── build_slide_02.py        # Slide 2 (原生表格 + 5 组发光胶囊进度条 + 2+1 渐变行动卡)
-│
-├── input/                       # 📥 原始输入素材 (截图、海报、PDF)
-├── assets/                      # 🖼️ 提取的高精无字底图与矢量图标资产
-├── output/                      # 📤 交付的 PPTX 文档与合并成果
-├── tests/                       # 🧪 自动化单元测试与回归套件
-├── AGENTS.md                    # (根目录镜像，保证 Agent 规则加载)
-├── SKILL.md                     # (根目录镜像)
-├── .gitignore                   # Git 忽略配置
-└── requirements.txt             # Python 依赖清单
-```
-
----
-
-## ⚡ 快速开始与使用指南
-
-### 1. 还原一张新的 PPT 图片
 ```bash
-# 1. 将图片放入 input/ 目录 (如 input/slide_demo.png)
-# 2. 运行脚手架生成构建脚本
-.venv/bin/python tools/init_deck.py input/slide_demo.png
-
-# 3. 编写/运行构建脚本 (支持累加构建调试)
-.venv/bin/python slides/build_slide_demo.py --cumulative-up-to 1
-
-# 4. DOM 结构深度检查 (PICTURE=0 严格校验)
-.venv/bin/python tools/inspect_pptx.py output/slide_demo.pptx
-
-# 5. 渲染视觉比对图
-.venv/bin/python tools/render_and_diff.py output/slide_demo.pptx input/slide_demo.png -o output/diff_demo.png
+python -m venv .venv
+# macOS / Linux
+source .venv/bin/activate
+# Windows PowerShell 使用：.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install .
+pptrestore doctor
 ```
 
-### 2. 运行自动化测试套件
+需要 Python 3.9+。核心依赖 Pillow、python-pptx、pypdf 自动安装。开发时使用 `python -m pip install -e ".[dev]"`。
+
+可选增强（在源码目录执行）：
+
 ```bash
-.venv/bin/python -m unittest tests/test_workspace.py
+python -m pip install ".[font-strict]"
+python -m pip install ".[ocr]"
+python -m pip install ".[powerpoint-windows]"
 ```
 
-### 3. 多页合并
+这些命令安装 Python 包，不安装 Office、系统字体、Tesseract 或 Poppler。
+
+## 系统依赖
+
+| 功能 | 外部要求 |
+| --- | --- |
+| 图片标准化、校验、生成 PPTX | 仅核心 Python 依赖 |
+| PDF 输入 | Poppler 的 pdftoppm 在 PATH 中 |
+| 真实渲染和审核 | PowerPoint 或 LibreOffice，以及 PDF 栅格化工具 |
+| WPS 预验 | 支持转换的 WPS CLI，或从 WPS 手动导出的 PDF |
+| 中文显示 | 安装包含所需中文字符的字体 |
+| macOS OCR | Swift 和可用的 Apple Vision SDK，适配脚本随包安装 |
+| Tesseract OCR | 系统 tesseract 和 chi_sim、eng 等所需语言包 |
+
+macOS 可用 Homebrew 安装 poppler 和 libreoffice，Ubuntu/Debian 可安装 poppler-utils、libreoffice-impress、fonts-noto-cjk。Windows 安装 Office 或 LibreOffice，并将 Poppler 的 bin 目录加入 PATH。运行 `pptrestore doctor` 检查本机能力。
+
+没有渲染器仍能生成 PPTX，但无法完成真实渲染审核。LibreOffice/WPS 的最高结论是 PREVERIFIED；正式 PASS 需要 PowerPoint 渲染及所有门禁通过。OCR 失败或识别为空不意味着图片没有文字。
+
+## 使用
+
+让能读取图片和执行本地命令的 Agent 阅读 [SKILL.md](SKILL.md)，并遵守 [AGENTS.md](AGENTS.md)。
+
+1. 准备案例。输入输出目录可自行指定：
+
 ```bash
-.venv/bin/python tools/merge.py output/slide_01.pptx output/slide_02.pptx -o output/final_deck.pptx
+pptrestore prepare /path/to/slide.png --case-dir /path/to/my-case --ocr auto
+# PDF 用 --page-index 0 选择第 1 页
 ```
 
----
+2. Agent 读取案例中的 canonical.png、evidence.json、agent_request.json 和导出的提示模板。第一遍生成 scene.proposed.json，第二遍重新看图生成 content_audit.proposed.json。
 
-## 📖 技术文档与参考导航
+3. 校验并生成蓝图：
 
-* [**SOP 标准操作规程**](agent/AGENTS.md)
-* [**SlideBuilder API 与工具箱参考手册**](docs/API_REFERENCE.md)
-* [**系统架构与 Multi-Agent 设计**](docs/ARCHITECTURE.md)
-* [**开发者与贡献指南**](docs/CONTRIBUTING.md)
+```bash
+pptrestore ingest /path/to/my-case /path/to/my-case/scene.proposed.json --content-audit /path/to/my-case/content_audit.proposed.json
+pptrestore blueprint /path/to/my-case
+```
+
+NEEDS_REVIEW 必须修正后重新 ingest。blueprint 返回分块图和 blueprint.json 的实际路径。用户确认后：
+
+```bash
+pptrestore block-init /path/to/my-case /path/from/blueprint/blueprint.json
+pptrestore next /path/to/my-case
+```
+
+4. 按 next 返回的参数构建当前块并审核。block_1 替换成实际 Block ID：
+
+```bash
+pptrestore build /path/to/my-case --blocks block_1 --output /path/to/my-case/block_1.pptx
+pptrestore review /path/to/my-case --block block_1 --renderer auto
+```
+
+展示局部对比和累计预览，用户明确确认后，使用 review 返回的实际报告路径：
+
+```bash
+pptrestore block-approve /path/to/my-case block_1 --review-report /path/from/review/review.json --user-confirmed
+pptrestore next /path/to/my-case
+```
+
+后续块按 next 返回的累计范围构建。全部通过后：
+
+```bash
+pptrestore build /path/to/my-case --output /path/to/result.pptx
+pptrestore verify /path/to/my-case /path/to/result.pptx --renderer auto
+```
+
+默认 hybrid_editable 保持业务内容原生，允许复杂装饰使用图片。全页禁止图片时，build 增加 `--render-strategy strict_native`。WPS 导出 PDF 可用 `--renderer wps --wps-pdf /path/to/exported.pdf` 导入。
+
+每条命令支持 --help。修订、优化和文件协议见 [PIPELINE.md](docs/PIPELINE.md)。
+
+## 项目结构
+
+- src/ppt_restore：核心代码、CLI、随包安装的 prompt 和 OCR 资源
+- tests：使用临时目录的自动化测试
+- docs：架构、协议和开发说明
+- AGENTS.md、SKILL.md：还原约束和 Agent 入口
+- pyproject.toml：唯一依赖与打包配置
+
+仅支持 SceneSpec v2。运行产物归案例目录所有，不属于源代码仓库。内容对账证明已提交场景内容在 PPT 中未丢失，不能证明原图识别正确；视觉质量仍需人工审核。

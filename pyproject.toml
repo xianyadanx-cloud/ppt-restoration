@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pptrestore"
+version = "0.2.0"
+description = "Deterministic, editable PPT restoration pipeline"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["Pillow>=9.1", "python-pptx>=1.0.2", "pypdf>=3.0"]
+
+[project.optional-dependencies]
+accelerate = ["numpy>=1.21"]
+ocr = ["pytesseract>=0.3.10"]
+font-strict = ["fonttools>=4.0"]
+powerpoint-windows = ["pywin32>=306; sys_platform == 'win32'"]
+dev = ["build>=1.0", "wheel", "ruff>=0.9"]
+
+[project.scripts]
+pptrestore = "ppt_restore:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ppt_restore*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+ppt_restore = ["resources/*.md", "resources/*.swift"]
