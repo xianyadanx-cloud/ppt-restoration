@@ -96,6 +96,24 @@ class CompilerFidelityTests(unittest.TestCase):
         self.assertIn("spc=", xml)
         self.assertNotIn("effectRef", xml)
 
+    def test_fill_opacity_is_written_on_the_color(self):
+        prs = self._slide(
+            [
+                {
+                    "element_type": "rounded_rect",
+                    "layout_bbox_px": [8, 8, 120, 24],
+                    "shape_style": {"fill": "#FFFFFF", "fill_opacity": 0.3},
+                }
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "slide.pptx"
+            prs.save(path)
+            with zipfile.ZipFile(path) as package:
+                xml = package.read("ppt/slides/slide1.xml").decode("utf-8")
+        self.assertIn('<a:srgbClr val="FFFFFF"><a:alpha val="30000"/></a:srgbClr>', xml)
+        self.assertNotIn("effectRef", xml)
+
     def test_chevron_keeps_its_geometry_when_it_has_a_label(self):
         prs = self._slide(
             [

@@ -485,15 +485,21 @@ class NativePrimitives:
         if not 0 <= opacity < 1:
             return
         try:
-            solid = xpr.find(
-                "{http://schemas.openxmlformats.org/drawingml/2006/main}srgbClr"
-            )
-            if solid is not None:
-                solid.append(
-                    parse_xml(
-                        '<a:alpha %s val="%d"/>' % (nsdecls("a"), int(opacity * 100000))
-                    )
+            ns = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+            # ``fill._xPr`` is the spPr parent.  ``find`` is not recursive, so
+            # the srgbClr nested under solidFill was never reached and
+            # fill_opacity compiled as an opaque color.
+            solid = xpr.find(".//%ssrgbClr" % ns)
+            if solid is None:
+                return
+            for child in list(solid):
+                if child.tag == ns + "alpha":
+                    solid.remove(child)
+            solid.append(
+                parse_xml(
+                    '<a:alpha %s val="%d"/>' % (nsdecls("a"), int(round(opacity * 100000)))
                 )
+            )
         except Exception:
             pass
 
