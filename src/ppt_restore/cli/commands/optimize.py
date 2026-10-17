@@ -80,7 +80,9 @@ def run(args):
                     h * 1000 / height,
                 ]
             )
-    fixed_objective = FixedRegionObjective(canonical, region["bbox_norm"], text_boxes)
+    fixed_objective = FixedRegionObjective(
+        canonical, region["bbox_norm"], text_boxes, blur_radius=2
+    )
     from ppt_restore.quality.cache_context import visual_cache_context
     from ppt_restore.rendering.renderers import _renderer_version
 

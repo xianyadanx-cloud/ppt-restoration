@@ -17,12 +17,14 @@ try:
     from pptx import Presentation
     from pptx.dml.color import RGBColor
     from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE, MSO_CONNECTOR
-    from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+    from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
     from pptx.oxml import parse_xml
     from pptx.oxml.ns import nsdecls, qn
     from pptx.oxml.xmlchemy import OxmlElement
 except ImportError:  # allows schema-only imports in minimal environments
     Presentation = None
+    MSO_AUTO_SIZE = None
+    qn = None
 
 
 def set_run_typeface(run, family: str) -> None:
@@ -158,6 +160,44 @@ def _style(element: Any, name: str, default=None):
     return default
 
 
+def strip_theme_style(shape) -> None:
+    """Remove the theme ``p:style`` that paints a default outer shadow.
+
+    python-pptx stamps ``effectRef idx="2"`` onto autoshapes.  LibreOffice and
+    PowerPoint then draw the theme shadow even when the scene requested none.
+    Explicit ``shadow`` / ``glow`` effects live in ``spPr/effectLst`` and stay.
+    """
+
+    element = getattr(shape, "_element", None)
+    if element is None or qn is None:
+        return
+    style = element.find(qn("p:style"))
+    if style is not None:
+        element.remove(style)
+
+
+# Autoshapes that may carry a text body.  A chevron with a label must stay a
+# chevron; the generic "has text → textbox" rule would otherwise flatten it.
+_SHAPE_TYPES = {
+    "rect": "RECTANGLE",
+    "rectangle": "RECTANGLE",
+    "rounded_rect": "ROUNDED_RECTANGLE",
+    "rounded_rectangle": "ROUNDED_RECTANGLE",
+    "rounded_rect_px": "ROUNDED_RECTANGLE",
+    "circle": "OVAL",
+    "ellipse": "OVAL",
+    "oval": "OVAL",
+    "circle_px": "OVAL",
+    "chevron": "CHEVRON",
+    "home_plate": "HOME_PLATE",
+    "pentagon": "PENTAGON",
+    "right_arrow": "RIGHT_ARROW",
+    "left_arrow": "LEFT_ARROW",
+    "down_arrow": "DOWN_ARROW",
+    "up_arrow": "UP_ARROW",
+}
+
+
 def _bbox(element: Any) -> Sequence[float]:
     for key in ("layout_bbox_px", "bbox_px", "bbox", "box"):
         value = _get(element, key, None)
@@ -199,29 +239,42 @@ class NativePrimitives:
             .casefold()
             .replace("-", "_")
         )
-        x, y, w, h = box_px_to_emu(_bbox(element), canvas)
+        bbox = list(_bbox(element))
+        if _style(element, "box_is_ink", False) and _get(element, "text", None):
+            from ppt_restore.rendering.text_fit import expand_ink_frame
+
+            bbox = list(
+                expand_ink_frame(
+                    bbox,
+                    float(_style(element, "font_size_pt", 12) or 12),
+                    canvas,
+                    ascent_gap_em=_style(element, "ascent_gap_em", None),
+                    descent_pad_em=_style(element, "descent_pad_em", None),
+                )
+            )
+        x, y, w, h = box_px_to_emu(bbox, canvas)
+        shaped = typ in _SHAPE_TYPES or typ in (
+            "line",
+            "connector",
+            "freeform",
+            "polygon",
+            "path",
+        )
         if (
             typ in ("text", "textbox", "text_box", "text_box_px")
             or _get(element, "text", None) is not None
-            and typ
-            not in (
-                "line",
-                "circle",
-                "rect",
-                "rectangle",
-                "rounded_rect",
-                "rounded_rectangle",
-                "freeform",
-            )
+            and not shaped
         ):
             shape = slide.shapes.add_textbox(x, y, w, h)
             self._format_text(shape, element, canvas)
+            strip_theme_style(shape)
             return shape
         if typ in ("line", "connector"):
             shape = slide.shapes.add_connector(
                 MSO_CONNECTOR.STRAIGHT, x, y, x + w, y + h
             )
             self._format_line(shape, element, canvas)
+            strip_theme_style(shape)
             return shape
         if typ in ("freeform", "polygon", "path"):
             pts = _get(element, "points", None) or _get(element, "vertices", None)
@@ -242,22 +295,32 @@ class NativePrimitives:
             )
             shape = builder.convert_to_shape()
             self._format_shape(shape, element, canvas)
+            strip_theme_style(shape)
             return shape
-        kind = (
-            MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE
-            if typ in ("rounded_rect", "rounded_rectangle", "rounded_rect_px")
-            else MSO_AUTO_SHAPE_TYPE.OVAL
-            if typ in ("circle", "ellipse", "oval", "circle_px")
-            else MSO_AUTO_SHAPE_TYPE.RECTANGLE
-        )
+        kind_name = _SHAPE_TYPES.get(typ, "RECTANGLE")
+        kind = getattr(MSO_AUTO_SHAPE_TYPE, kind_name, None)
+        prst_override = None
+        if kind is None and kind_name == "HOME_PLATE":
+            # python-pptx omits homePlate.  Pentagon is the flat-left arrow;
+            # renaming the preset keeps the geometry on LibreOffice/PowerPoint.
+            kind = MSO_AUTO_SHAPE_TYPE.PENTAGON
+            prst_override = "homePlate"
+        if kind is None:
+            kind = MSO_AUTO_SHAPE_TYPE.RECTANGLE
         shape = slide.shapes.add_shape(kind, x, y, w, h)
+        if prst_override and qn is not None:
+            prst = shape._element.spPr.find(qn("a:prstGeom"))
+            if prst is not None:
+                prst.set("prst", prst_override)
         self._format_shape(shape, element, canvas)
-        if kind == MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE:
+        self._apply_shape_adjust(shape, element)
+        if kind == MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE and prst_override is None:
             self._set_corner_adjustment(
                 shape, float(_style(element, "corner_radius_px", 0) or 0), w, h, canvas
             )
         if _get(element, "text", None) is not None:
             self._format_text(shape, element, canvas)
+        strip_theme_style(shape)
         return shape
 
     def _format_shape(self, shape, element, canvas):
@@ -302,6 +365,10 @@ class NativePrimitives:
     def _format_text(self, shape, element, canvas):
         tf = shape.text_frame
         tf.clear()
+        # ``add_textbox`` writes ``spAutoFit``.  LibreOffice still wraps on the
+        # box width under wrap="none"+spAutoFit, which splits CJK titles.
+        if MSO_AUTO_SIZE is not None:
+            tf.auto_size = MSO_AUTO_SIZE.NONE
         tf.word_wrap = bool(_style(element, "word_wrap", False))
         margins = (
             _style(element, "margins_pt", None)
@@ -403,6 +470,14 @@ class NativePrimitives:
         )
         run.font.italic = bool(_get(spec, "italic", _style(element, "italic", False)))
         run.font.color.rgb = _rgb(color)
+        spacing = _get(
+            spec,
+            "char_spacing_pt",
+            _style(element, "char_spacing_pt", None),
+        )
+        if spacing not in (None, 0, 0.0):
+            rpr = run._r.get_or_add_rPr()
+            rpr.set("spc", str(int(round(float(spacing) * 100))))
 
     @staticmethod
     def _set_alpha(xpr, opacity):
@@ -491,6 +566,20 @@ class NativePrimitives:
             self._warnings.append("effects unavailable: %s" % exc)
 
     @staticmethod
+    def _apply_shape_adjust(shape, element):
+        """Write preset-geometry adjustments.  Values are 0–1 fractions."""
+
+        raw = _style(element, "shape_adjust", None)
+        if raw is None:
+            return
+        values = raw if isinstance(raw, (list, tuple)) else (raw,)
+        try:
+            for index, value in enumerate(values):
+                shape.adjustments[index] = float(value)
+        except (AttributeError, IndexError, TypeError, ValueError):
+            return
+
+    @staticmethod
     def _set_corner_adjustment(shape, radius_px, width_emu, height_emu, canvas):
         try:
             # adjustment 0..0.5 is a proportion of the smaller dimension.
@@ -519,4 +608,4 @@ def _is_picture_shape(shape: Any) -> bool:
     return str(name or value).upper().split(" ", 1)[0] == "PICTURE"
 
 
-__all__ = ["BuildResult", "NativePrimitives"]
+__all__ = ["BuildResult", "NativePrimitives", "strip_theme_style"]

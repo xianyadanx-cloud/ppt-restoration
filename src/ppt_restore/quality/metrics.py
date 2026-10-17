@@ -127,6 +127,114 @@ def calculate_edge_f1(
     return 2 * precision * recall / (precision + recall) if precision + recall else 0.0
 
 
+def calculate_blur_l1(
+    render: Image.Image,
+    truth: Image.Image,
+    radii: Sequence[int] = (2, 6, 12),
+    weights: Sequence[float] = (0.2, 0.4, 0.4),
+) -> float:
+    """Mean absolute error after Gaussian blur.
+
+    A 2 px slide shift saturates raw SSIM.  Blurred L1 stays monotonic across
+    that range, so search and human comparison can use it beside SSIM.
+    """
+
+    render, truth = _aligned_images(render.convert("RGB"), truth.convert("RGB"))
+    total_weight = 0.0
+    total = 0.0
+    for radius, weight in zip(radii, weights):
+        blurred_render = render.filter(ImageFilter.GaussianBlur(radius=int(radius)))
+        blurred_truth = truth.filter(ImageFilter.GaussianBlur(radius=int(radius)))
+        diff = ImageChops.difference(blurred_render, blurred_truth)
+        stat = ImageStat.Stat(diff)
+        total += float(weight) * (sum(stat.mean) / (3.0 * 255.0))
+        total_weight += float(weight)
+    return total / total_weight if total_weight else 0.0
+
+
+def calculate_tolerant_edge_f1(
+    render: Image.Image,
+    truth: Image.Image,
+    threshold: int = 30,
+    dilate: int = 2,
+) -> float:
+    """Edge F1 after dilating both masks so a 1–2 px shift still overlaps."""
+
+    render, truth = _aligned_images(render.convert("RGB"), truth.convert("RGB"))
+    size = max(1, int(dilate) * 2 + 1)
+    kernel = ImageFilter.MaxFilter(size if size % 2 else size + 1)
+
+    def mask(image: Image.Image) -> Image.Image:
+        return _edge_mask(image, threshold).filter(kernel)
+
+    a = list(mask(render).getdata())
+    b = list(mask(truth).getdata())
+    true_positive = sum(1 for x, y in zip(a, b) if x and y)
+    predicted = sum(1 for x in a if x)
+    actual = sum(1 for y in b if y)
+    if predicted == 0 and actual == 0:
+        return 1.0
+    precision = true_positive / float(predicted) if predicted else 0.0
+    recall = true_positive / float(actual) if actual else 0.0
+    return 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+
+
+def _detail_mask(image: Image.Image, threshold: int = 18) -> Image.Image:
+    gray = image.convert("L")
+    residual = ImageChops.difference(gray, gray.filter(ImageFilter.GaussianBlur(2)))
+    return residual.point(lambda value: 255 if value >= threshold else 0)
+
+
+def calculate_ink_iou(
+    render: Image.Image, truth: Image.Image, dilate: int = 2, threshold: int = 18
+) -> float:
+    """IoU of high-frequency ink (text and icon edges), dilated for subpixel shift."""
+
+    render, truth = _aligned_images(render.convert("RGB"), truth.convert("RGB"))
+    size = max(1, int(dilate) * 2 + 1)
+    kernel = ImageFilter.MaxFilter(size if size % 2 else size + 1)
+    a = _detail_mask(render, threshold).filter(kernel)
+    b = _detail_mask(truth, threshold).filter(kernel)
+    left = list(a.getdata())
+    right = list(b.getdata())
+    intersection = sum(1 for x, y in zip(left, right) if x and y)
+    union = sum(1 for x, y in zip(left, right) if x or y)
+    if union == 0:
+        return 1.0
+    return intersection / float(union)
+
+
+def calculate_best_shift_ssim(
+    render: Image.Image, truth: Image.Image, max_shift: int = 2, window: int = 8
+) -> Dict[str, float]:
+    """SSIM at the best integer shift inside ``±max_shift``.
+
+    Reports the unshifted score as well so a pure translation is visible
+    instead of being scored as a missing layout.
+    """
+
+    render, truth = _aligned_images(render.convert("RGB"), truth.convert("RGB"))
+    base = calculate_ssim(render, truth, window=window)
+    best = base
+    best_dx, best_dy = 0, 0
+    width, height = truth.size
+    for dy in range(-int(max_shift), int(max_shift) + 1):
+        for dx in range(-int(max_shift), int(max_shift) + 1):
+            if dx == 0 and dy == 0:
+                continue
+            shifted = Image.new("RGB", (width, height), (255, 255, 255))
+            shifted.paste(render, (dx, dy))
+            score = calculate_ssim(shifted, truth, window=window)
+            if score > best:
+                best, best_dx, best_dy = score, dx, dy
+    return {
+        "ssim": base,
+        "ssim_best_shift": best,
+        "shift_dx": best_dx,
+        "shift_dy": best_dy,
+    }
+
+
 def _rgb_to_lab(rgb: Sequence[int]) -> Tuple[float, float, float]:
     values = []
     for channel in rgb[:3]:

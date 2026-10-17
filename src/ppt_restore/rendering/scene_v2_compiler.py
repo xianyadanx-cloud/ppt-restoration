@@ -40,6 +40,18 @@ def _payload(node: SceneNode) -> Dict[str, Any]:
     return dict(node.payload or {})
 
 
+def _circular_alpha(image):
+    """Keep a circular disk and clear the corners so icons can sit on shapes."""
+
+    from PIL import Image, ImageDraw
+
+    rgba = image.convert("RGBA")
+    mask = Image.new("L", rgba.size, 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, rgba.width - 1, rgba.height - 1), fill=255)
+    rgba.putalpha(mask)
+    return rgba
+
+
 def _op(
     node: SceneNode,
     op_type: str,
@@ -121,40 +133,53 @@ def lower_scene(
         elif kind == NodeKind.KPI_CARD.value:
             operations.append(_op(node, "rounded_rect", {}, style, "-base"))
             x, y, width, height = node.bbox_px
-            label_h = min(28.0, height * 0.24)
-            value_h = min(42.0, height * 0.40)
+            layout = str(style.get("layout", "label_on_top"))
+            label_h = float(style.get("label_height_px", min(28.0, height * 0.28)))
+            value_h = float(style.get("value_height_px", min(42.0, height * 0.42)))
+            label_style = {
+                "font_size_pt": style.get(
+                    "label_font_size_pt", style.get("label_size_pt", 11)
+                ),
+                "weight": style.get("label_weight", "bold"),
+                "color": style.get("label_color", "#1B5B9E"),
+                "align": style.get("align", "center"),
+                "vertical_anchor": "middle",
+            }
+            value_style = {
+                "font_size_pt": style.get(
+                    "value_font_size_pt", style.get("value_size_pt", 22)
+                ),
+                "weight": style.get("value_weight", "bold"),
+                "color": style.get("value_color", "#0F172A"),
+                "align": style.get("align", "center"),
+                "vertical_anchor": "middle",
+            }
+            if layout == "value_on_top":
+                value_box = (x, y + height * 0.06, width, value_h)
+                label_box = (x, y + height * 0.06 + value_h, width, label_h)
+            else:
+                label_box = (x, y, width, label_h)
+                value_box = (x, y + label_h, width, value_h)
             operations.append(
                 RenderOp(
                     node.id + "-label",
                     "text",
-                    (x, y, width, label_h),
+                    label_box,
                     node.z_index + 1,
                     node.id,
                     {"text": payload.get("label", "")},
-                    {
-                        "font_size_pt": 11,
-                        "weight": "bold",
-                        "color": style.get("label_color", "#1B5B9E"),
-                        "align": "center",
-                        "vertical_anchor": "middle",
-                    },
+                    label_style,
                 )
             )
             operations.append(
                 RenderOp(
                     node.id + "-value",
                     "text",
-                    (x, y + label_h, width, value_h),
+                    value_box,
                     node.z_index + 1,
                     node.id,
                     {"text": payload.get("value", "")},
-                    {
-                        "font_size_pt": 22,
-                        "weight": "bold",
-                        "color": style.get("value_color", "#0F172A"),
-                        "align": "center",
-                        "vertical_anchor": "middle",
-                    },
+                    value_style,
                 )
             )
             if payload.get("delta") is not None:
@@ -305,25 +330,61 @@ def lower_scene(
                 warnings.append("%s process has no steps" % node.id)
             else:
                 x, y, width, height = node.bbox_px
-                step_width = width / float(len(steps))
+                step_shape = str(style.get("step_shape", "text"))
+                overlap = float(style.get("step_overlap_px", 0) or 0)
+                fills = style.get("step_fills") or []
+                count = float(len(steps))
+                step_width = (width + overlap * (count - 1)) / count
                 for index, step in enumerate(steps):
                     text = (
                         step.get("text", "") if isinstance(step, Mapping) else str(step)
                     )
+                    fill = None
+                    if isinstance(step, Mapping) and step.get("fill"):
+                        fill = step.get("fill")
+                    elif index < len(fills):
+                        fill = fills[index]
+                    left = x + index * (step_width - overlap)
+                    if step_shape in (
+                        "chevron",
+                        "home_plate",
+                        "pentagon",
+                        "right_arrow",
+                    ):
+                        operations.append(
+                            RenderOp(
+                                "%s-step-%d-shape" % (node.id, index + 1),
+                                step_shape,
+                                (left, y, step_width, height),
+                                node.z_index + index,
+                                node.id,
+                                {},
+                                {
+                                    "fill": fill or style.get("fill", "#1D4F91"),
+                                    "corner_radius_px": style.get("corner_radius_px", 0),
+                                },
+                            )
+                        )
+                    text_style = {
+                        "font_size_pt": style.get("font_size_pt", 12),
+                        "color": style.get(
+                            "text_color", style.get("color", "#0F172A")
+                        ),
+                        "align": "center",
+                        "vertical_anchor": "middle",
+                        "weight": style.get("weight", "bold"),
+                    }
+                    if style.get("font_family"):
+                        text_style["font_family"] = style.get("font_family")
                     operations.append(
                         RenderOp(
                             "%s-step-%d" % (node.id, index + 1),
                             "text",
-                            (x + index * step_width, y, step_width, height),
-                            node.z_index + index,
+                            (left, y, step_width, height),
+                            node.z_index + index + 1,
                             node.id,
                             {"text": text},
-                            {
-                                "font_size_pt": style.get("font_size_pt", 12),
-                                "color": style.get("color", "#0F172A"),
-                                "align": "center",
-                                "vertical_anchor": "middle",
-                            },
+                            text_style,
                         )
                     )
         else:
@@ -463,20 +524,28 @@ class SceneSpecCompiler(NativePrimitives):
         payload = dict(op.payload or {})
         style = dict(op.style or {})
         typ = op.op_type
-        if typ == "rect":
-            element_type = "rect"
-        elif typ in ("rounded_rect", "rounded_rectangle"):
-            element_type = "rounded_rect"
-        elif typ in ("ellipse", "oval", "circle"):
-            element_type = "circle"
-        elif typ in ("line", "connector"):
-            element_type = "line"
-        elif typ == "text":
-            element_type = "text"
-        else:
-            element_type = (
-                "freeform" if typ in ("freeform", "polygon", "path") else "rect"
-            )
+        element_type = {
+            "rect": "rect",
+            "rectangle": "rect",
+            "rounded_rect": "rounded_rect",
+            "rounded_rectangle": "rounded_rect",
+            "ellipse": "circle",
+            "oval": "circle",
+            "circle": "circle",
+            "line": "line",
+            "connector": "line",
+            "text": "text",
+            "chevron": "chevron",
+            "home_plate": "home_plate",
+            "pentagon": "pentagon",
+            "right_arrow": "right_arrow",
+            "left_arrow": "left_arrow",
+            "down_arrow": "down_arrow",
+            "up_arrow": "up_arrow",
+            "freeform": "freeform",
+            "polygon": "freeform",
+            "path": "freeform",
+        }.get(typ, "rect")
         element = {
             "id": op.id,
             "element_type": element_type,
@@ -535,9 +604,14 @@ class SceneSpecCompiler(NativePrimitives):
             y = max(0, min(image.height - 1, y))
             width = min(width, image.width - x)
             height = min(height, image.height - y)
-            crop = image.convert("RGB").crop((x, y, x + width, y + height))
-            path = temp_root / (op.id.replace("/", "_") + ".png")
-            crop.save(path)
+            crop = image.convert("RGBA").crop((x, y, x + width, y + height))
+            if str(op.payload.get("mask", "")).casefold() == "circle":
+                crop = _circular_alpha(crop)
+                path = temp_root / (op.id.replace("/", "_") + ".png")
+                crop.save(path)
+            else:
+                path = temp_root / (op.id.replace("/", "_") + ".png")
+                crop.convert("RGB").save(path)
         left, top, w, h = box_px_to_emu(op.bbox_px, self.canvas)
         slide.shapes.add_picture(str(path), left, top, w, h)
 
@@ -670,11 +744,14 @@ class SceneSpecCompiler(NativePrimitives):
             width, height = round(cw * (1 - 2 * padding)), round(rh * thickness)
 
             def shape(part, kind, sx, sy, sw, sh, color):
+                from ppt_restore.rendering.compiler import strip_theme_style
+
                 item = slide.shapes.add_shape(kind, sx, sy, max(1, sw), max(1, sh))
                 item.name = "%s:progress:%d:%s" % (op.source_node_id, index, part)
                 item.fill.solid()
                 item.fill.fore_color.rgb = self._rgb(color)
                 item.line.fill.background()
+                strip_theme_style(item)
                 return item
 
             kind = (

@@ -10,7 +10,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 class FixedRegionObjective:
     version = "fixed-regions-v1"
 
-    def __init__(self, reference, bbox_norm, text_boxes_norm=()):
+    def __init__(self, reference, bbox_norm, text_boxes_norm=(), blur_radius=0):
         with Image.open(reference) as source:
             source = source.convert("RGB")
         self.size = source.size
@@ -38,6 +38,9 @@ class FixedRegionObjective:
         contour = ImageChops.subtract(edges, text)
         background = ImageChops.invert(ImageChops.lighter(text, contour))
         self.masks = {"text": text, "contour": contour, "background": background}
+        self.blur_radius = max(0, int(blur_radius))
+        if self.blur_radius:
+            self.version = "fixed-regions-blur-%d" % self.blur_radius
 
     def _box(self, bounds):
         l, t, w, h = map(float, bounds)
@@ -52,7 +55,15 @@ class FixedRegionObjective:
     def evaluate(self, image):
         with Image.open(image) as actual:
             actual = actual.convert("RGB").resize(self.size).crop(self.box)
-        difference = ImageChops.difference(actual, self.reference)
+        reference = self.reference
+        if self.blur_radius:
+            # Blur keeps a slope for shifts of a few pixels.  Masks stay on
+            # the sharp reference so the search cannot move the text region.
+            actual = actual.filter(ImageFilter.GaussianBlur(radius=self.blur_radius))
+            reference = reference.filter(
+                ImageFilter.GaussianBlur(radius=self.blur_radius)
+            )
+        difference = ImageChops.difference(actual, reference)
         losses = {}
         for name, mask in self.masks.items():
             if mask.getbbox() is not None:

@@ -267,18 +267,34 @@ def canonicalize(
         normalized = _quad_transform(image, c, target_size)  # type: ignore
         confidence, method = 0.99, "explicit_quad"
     else:
-        if candidates and len(candidates) > 1:
+        page_cropped = False
+        if candidates and (
+            len(candidates) > 1 or not _is_target_ratio(image.size, target_size)
+        ):
             if page_index < 0 or page_index >= len(candidates):
                 raise IndexError("page_index out of range")
             box = candidates[page_index]
             image = image.crop((box[0], box[1], box[0] + box[2], box[1] + box[3]))
             src_size = image.size
             method = "long_image_page"
-        box, confidence = detect_canvas_bounds(image)
-        image = image.crop((box[0], box[1], box[0] + box[2], box[1] + box[3]))
-        normalized = image.resize(target_size, Image.Resampling.LANCZOS)
-        if method == "identity" and box != (0, 0, src_size[0], src_size[1]):
-            method = "detected_canvas"
+            page_cropped = True
+        # A detected page that is already near 16:9 must be kept whole.
+        # ``detect_canvas_bounds`` center-crops when it cannot see a border,
+        # which previously cut the bottom of a slide that included a timeline.
+        ratio_error = abs(
+            (image.size[0] / float(image.size[1]))
+            / (target_size[0] / float(target_size[1]))
+            - 1
+        )
+        if page_cropped and ratio_error <= 0.08:
+            normalized = image.resize(target_size, Image.Resampling.LANCZOS)
+            confidence = 0.98 if len(candidates) > 1 else 0.96
+        else:
+            box, confidence = detect_canvas_bounds(image)
+            image = image.crop((box[0], box[1], box[0] + box[2], box[1] + box[3]))
+            normalized = image.resize(target_size, Image.Resampling.LANCZOS)
+            if method == "identity" and box != (0, 0, src_size[0], src_size[1]):
+                method = "detected_canvas"
     normalized = normalized.convert("RGB")
     canonical = root / "canonical.png"
     normalized.save(canonical, format="PNG", optimize=False)
