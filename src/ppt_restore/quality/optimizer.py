@@ -117,8 +117,10 @@ class Optimizer:
         cache_context: Optional[Mapping[str, Any]] = None,
     ):
         self.render = render
-        self.max_rounds = min(5, max(1, int(max_rounds)))
-        self.max_candidates = min(32, max(1, int(max_candidates)))
+        # Caps stay above the historical 5×32 default so a caller can search
+        # more than one field per round.  The defaults themselves are unchanged.
+        self.max_rounds = min(12, max(1, int(max_rounds)))
+        self.max_candidates = min(128, max(1, int(max_candidates)))
         self.cache: Dict[str, float] = cache if cache is not None else {}
         self.cache_hits = 0
         self.cache_context = dict(cache_context or {})
@@ -144,9 +146,11 @@ class Optimizer:
             current, str(block_id), current_loss, cache_hits=self.cache_hits
         )
         low_gain_rounds = 0
-        for round_no, step in enumerate(self.STEP_SIZES[: self.max_rounds], 1):
-            best = current
-            best_loss = current_loss
+        steps = list(self.STEP_SIZES)
+        while len(steps) < self.max_rounds:
+            steps.append(steps[-1])
+        for round_no, step in enumerate(steps[: self.max_rounds], 1):
+            start_loss = current_loss
             evaluated = 0
             specs = self._variable_specs(current, block_id, allowed)
             if specs and priority_node_ids:
@@ -213,28 +217,37 @@ class Optimizer:
                                 "scene_sha256": self.scene_hash(candidate),
                             }
                         )
-                        if loss < best_loss - 1e-12:
-                            best, best_loss = candidate, loss
+                        # Accept every improving field in this round.  Later
+                        # trials are cloned from the updated scene, so one
+                        # round can land a change on each node instead of
+                        # keeping only the single best candidate.
+                        if loss < current_loss - 1e-12:
+                            current, current_loss = candidate, loss
+                            result.improved = True
                     if evaluated >= self.max_candidates:
                         break
                 if evaluated >= self.max_candidates:
                     break
-            gain = current_loss - best_loss
+            gain = start_loss - current_loss
             result.rounds = round_no
             result.candidates_evaluated += evaluated
             result.history.append(
                 {
                     "round": round_no,
                     "step": step,
-                    "loss_before": current_loss,
-                    "loss_after": best_loss,
+                    "loss_before": start_loss,
+                    "loss_after": current_loss,
                     "gain": gain,
                     "candidates": evaluated,
+                    "accepted_fields": sum(
+                        1
+                        for item in result.history
+                        if item.get("round") == round_no
+                        and "candidate_loss" in item
+                        and item["candidate_loss"] <= current_loss + 1e-12
+                    ),
                 }
             )
-            if gain > 0:
-                current, current_loss = best, best_loss
-                result.improved = True
             if gain <= max(1e-12, abs(current_loss) * 0.002):
                 low_gain_rounds += 1
             else:
@@ -440,6 +453,9 @@ class Optimizer:
         )
         if value_key == "line_spacing":
             value = base + delta / 100.0
+        # Bbox steps stay in pixels.  A 16 px step is not a 16 pt font step.
+        if value_key in ("font_size_pt", "font_size"):
+            value = base + delta * (2.0 / 16.0)
         if (
             value_key
             in ("font_size_pt", "font_size", "line_spacing", "line_spacing_pt")

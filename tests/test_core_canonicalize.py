@@ -57,6 +57,33 @@ class CanonicalizeTests(unittest.TestCase):
         self.assertEqual(candidates[0], (69, 347, 1301, 734))
         self.assertEqual(candidates[1], (69, 1115, 1301, 734))
 
+    def test_cover_banner_does_not_replace_the_slide_card(self):
+        from ppt_restore.pipeline.canonicalize import detect_page_candidates
+
+        image = Image.new("RGB", (1440, 1920), (209, 213, 214))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((0, 0, 1439, 250), fill=(28, 91, 158))
+        draw.rectangle((68, 347, 1372, 1081), fill="white")
+        draw.rectangle((68, 1116, 1372, 1850), fill="white")
+        candidates = detect_page_candidates(image)
+        self.assertGreaterEqual(len(candidates), 2)
+        self.assertGreater(candidates[0][1], 250)
+        self.assertGreater(candidates[0][3], 700)
+
+    def test_single_inset_page_is_not_center_cropped(self):
+        with tempfile.TemporaryDirectory() as td:
+            source = Path(td) / "input.png"
+            image = Image.new("RGB", (1800, 1200), (209, 213, 214))
+            ImageDraw.Draw(image).rectangle((80, 40, 80 + 1439, 40 + 809), fill="white")
+            ImageDraw.Draw(image).rectangle((80, 40, 120, 80), fill=(200, 0, 0))
+            image.save(source)
+            canonicalize(source, Path(td) / "case")
+            with Image.open(Path(td) / "case" / "canonical.png") as canonical:
+                self.assertEqual(canonical.size, (1440, 810))
+                corner = canonical.getpixel((2, 2))
+                self.assertGreater(corner[0], 150)
+                self.assertLess(corner[1], 80)
+
 
 if __name__ == "__main__":
     unittest.main()

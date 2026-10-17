@@ -172,6 +172,31 @@ class OptimizerCoreTests(unittest.TestCase):
         self.assertTrue(result.improved)
         self.assertEqual(scene.nodes[0].bbox_px[0], 0.0)
 
+    def test_one_round_accepts_bbox_and_font_size_together(self):
+        scene = {
+            "nodes": [
+                {
+                    "id": "title",
+                    "block_id": "b",
+                    "bbox_px": [0, 0, 80, 40],
+                    "style": {"font_size_pt": 12},
+                }
+            ]
+        }
+
+        def objective(candidate):
+            node = candidate["nodes"][0]
+            return abs(node["bbox_px"][0] - 16) + abs(
+                node["style"]["font_size_pt"] - 14
+            )
+
+        result = Optimizer(max_rounds=1, max_candidates=16).optimize(
+            scene, "b", objective
+        )
+        self.assertEqual(result.scene["nodes"][0]["bbox_px"][0], 16)
+        self.assertAlmostEqual(result.scene["nodes"][0]["style"]["font_size_pt"], 14)
+        self.assertEqual(result.rounds, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

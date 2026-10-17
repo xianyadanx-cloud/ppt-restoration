@@ -260,6 +260,100 @@ def _error_detail(exc: Exception, limit: int = 4000) -> str:
     return detail[:head] + " ... [truncated] ... " + detail[-tail:]
 
 
+def _is_cjk(char: str) -> bool:
+    if not char:
+        return False
+    code = ord(char)
+    return (
+        0x3400 <= code <= 0x9FFF
+        or 0xF900 <= code <= 0xFAFF
+        or 0x3000 <= code <= 0x303F
+        or 0xFF00 <= code <= 0xFFEF
+    )
+
+
+def merge_line_detections(
+    detections: Iterable[TextDetection],
+    *,
+    y_tolerance_ratio: float = 0.55,
+    gap_em: float = 0.85,
+) -> List[TextDetection]:
+    """Join tokens that share a baseline and a small horizontal gap.
+
+    Chinese OCR often returns one character per box.  Tokens on the same
+    baseline are concatenated without a space when both sides are CJK.  A
+    column gap larger than ``gap_em`` keeps the next token on its own line so
+    side-by-side quarter columns are not fused into one string.
+    """
+
+    items = [item for item in detections if item.text and str(item.text).strip()]
+    if not items:
+        return []
+    items.sort(key=lambda item: (item.bbox_px[1] + item.bbox_px[3] / 2.0, item.bbox_px[0]))
+    lines: List[dict] = []
+    for item in items:
+        _x, y, _w, height = item.bbox_px
+        center = y + height / 2.0
+        placed = False
+        for line in lines:
+            # Tolerance stays on the seed token.  Growing the line box would
+            # swallow the next paragraph once a few tall tokens joined.
+            seed = line["items"][0]
+            sy, sh = seed.bbox_px[1], seed.bbox_px[3]
+            overlap = min(y + height, sy + sh) - max(y, sy)
+            needed = 0.45 * min(height, sh)
+            if overlap >= needed and abs(center - line["center"]) <= max(
+                4.0, y_tolerance_ratio * min(height, sh)
+            ):
+                line["items"].append(item)
+                placed = True
+                break
+        if not placed:
+            lines.append({"center": center, "height": height, "items": [item]})
+    merged: List[TextDetection] = []
+    for line in lines:
+        ordered = sorted(line["items"], key=lambda det: det.bbox_px[0])
+        group = [ordered[0]]
+        groups = [group]
+        for previous, current in zip(ordered, ordered[1:]):
+            gap = current.bbox_px[0] - (previous.bbox_px[0] + previous.bbox_px[2])
+            em = max(previous.bbox_px[3], current.bbox_px[3], 1.0)
+            if gap > max(8.0, gap_em * em):
+                group = [current]
+                groups.append(group)
+            else:
+                group.append(current)
+        for group in groups:
+            parts: List[str] = []
+            previous = None
+            for det in group:
+                text = str(det.text).strip()
+                if previous is not None:
+                    gap = det.bbox_px[0] - (previous.bbox_px[0] + previous.bbox_px[2])
+                    em = max(previous.bbox_px[3], det.bbox_px[3], 1.0)
+                    left = previous.text.strip()[-1:]
+                    right = text[:1]
+                    if gap > 0.25 * em and not (_is_cjk(left) and _is_cjk(right)):
+                        parts.append(" ")
+                parts.append(text)
+                previous = det
+            xs = [det.bbox_px[0] for det in group]
+            ys = [det.bbox_px[1] for det in group]
+            xe = [det.bbox_px[0] + det.bbox_px[2] for det in group]
+            ye = [det.bbox_px[1] + det.bbox_px[3] for det in group]
+            confidence = sum(det.confidence for det in group) / len(group)
+            merged.append(
+                TextDetection(
+                    "".join(parts),
+                    (min(xs), min(ys), max(xe) - min(xs), max(ye) - min(ys)),
+                    min(1.0, confidence),
+                    group[0].provider,
+                )
+            )
+    merged.sort(key=lambda item: (item.bbox_px[1], item.bbox_px[0]))
+    return merged
+
+
 def run_ocr(
     image,
     providers: Iterable[OcrProvider],
@@ -342,6 +436,7 @@ def run_ocr(
             warnings.append("OCR provider %s failed: %s" % (label, detail))
 
     if detections:
+        detections = merge_line_detections(detections)
         status = "completed"
     elif saw_success:
         # At least one provider ran successfully but all returned no text.
@@ -363,5 +458,6 @@ __all__ = [
     "MacVisionOcrProvider",
     "auto_ocr_provider",
     "auto_ocr_providers",
+    "merge_line_detections",
     "run_ocr",
 ]

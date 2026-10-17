@@ -39,6 +39,21 @@ Use `bbox_norm: [left, top, width, height]` for every node in the public
 deterministic conversion to pixels. Use `source_bbox_norm` for image crops and
 `points_norm` for freeform geometry.
 
+Typography uses the slide canvas, not 96 DPI. On the default 1440×810 canvas,
+1 px = 2/3 pt (1440 px = 960 pt). Set `style.font_size_pt` from ink height with
+that ratio. If the box is the ink of the glyphs rather than the text frame,
+set `style.box_is_ink` to true so the compiler lifts the frame by the ascent.
+`kpi_card` defaults to the label above the value; set `style.layout` to
+`value_on_top` when the number is on top, and set `label_font_size_pt` /
+`value_font_size_pt` / colors from the reference instead of leaving the
+historical defaults. Ribbon and quarter banners use shape types `chevron`,
+`home_plate`, `pentagon`, or `right_arrow`, or a `process` node with
+`style.step_shape` set to one of those. `style.shape_adjust` is a 0–1 preset
+adjustment (or a list) for the arrow depth. Theme shadows are not drawn unless
+`style.shadow` is set. `style.char_spacing_pt` sets run tracking in points.
+An image payload `mask: "circle"` keeps a circular alpha disk for icons that
+sit on top of native shapes.
+
 Model the slide semantically, not as edge fragments:
 
 - group nodes describe macro regions and may contain children

@@ -247,6 +247,15 @@ def prepare_case(
             "image_source_boxes": "source_bbox_norm uses the same 0-1000 space",
             "freeform_geometry": "points_norm uses the same 0-1000 space",
         },
+        "typography_contract": {
+            "px_per_pt": 1.5,
+            "pt_per_px": 0.6666666666666666,
+            "canvas_dpi": 108.0,
+            "note": "1440 px = 13.333 in = 960 pt. Do not convert font size at 96 DPI (that is 0.75 pt/px and makes type 12.5% too large).",
+            "ink_box": "style.box_is_ink=true expands the frame by the font ascent so glyphs sit on the measured ink",
+            "kpi_layout": "kpi_card style.layout is label_on_top (default) or value_on_top; label_font_size_pt and value_font_size_pt override component defaults",
+            "ribbon_shapes": "shape payload shape_type and process style.step_shape accept chevron, home_plate, pentagon, right_arrow",
+        },
         "allowed_node_kinds": [
             "group",
             "text",

@@ -7,6 +7,7 @@ from ppt_restore.platform.ocr import (
     OcrProvider,
     TesseractOcrProvider,
     TextDetection,
+    merge_line_detections,
     run_ocr,
 )
 
@@ -81,6 +82,20 @@ class OcrCoreTests(unittest.TestCase):
         self.assertEqual(status, "zero_detections")
         self.assertEqual(attempts[0]["status"], "zero_detections")
         self.assertFalse(warnings)
+
+    def test_cjk_tokens_on_one_baseline_merge_and_columns_stay_apart(self):
+        tokens = [
+            TextDetection("目", (10, 10, 16, 18), 0.9, "tesseract"),
+            TextDetection("标", (28, 11, 16, 18), 0.9, "tesseract"),
+            TextDetection("Q1", (400, 12, 30, 18), 0.8, "tesseract"),
+            TextDetection("增长", (10, 80, 40, 18), 0.9, "tesseract"),
+        ]
+        merged = merge_line_detections(tokens)
+        texts = [item.text for item in merged]
+        self.assertIn("目标", texts)
+        self.assertIn("Q1", texts)
+        self.assertIn("增长", texts)
+        self.assertEqual(len(merged), 3)
 
 
 if __name__ == "__main__":
