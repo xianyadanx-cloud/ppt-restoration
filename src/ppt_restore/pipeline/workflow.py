@@ -137,6 +137,17 @@ def validate_scene_proposal(
         if missing:
             reasons.append("missing evidence reference(s): %s" % ", ".join(missing))
         values = _text_values(node)
+        payload = node.payload or {}
+        runs = payload.get("runs")
+        if isinstance(payload.get("text"), str) and isinstance(runs, list) and runs:
+            spelled = "".join(
+                str(run.get("text", "")) for run in runs if isinstance(run, Mapping)
+            )
+            if spelled.replace("\n", "") != payload["text"].replace("\n", ""):
+                reasons.append(
+                    "payload.runs spell %r but payload.text is %r; runs are what renders, keep them identical to the visible text"
+                    % (spelled, payload["text"])
+                )
         for row in ocr:
             row_text = str(row.get("text", "")).strip()
             if not row_text or float(row.get("confidence", 0.0)) < 0.90:

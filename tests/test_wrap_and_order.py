@@ -190,3 +190,26 @@ class OcrAgreementTests(unittest.TestCase):
         self.assertFalse(_ocr_agrees("销售额突破2600万", ["销售额突破2800万"]))
         self.assertFalse(_ocr_agrees("15.8%", ["15.3%"]))
         self.assertFalse(_ocr_agrees("核心市场提频", ["新品引爆市场"]))
+
+
+class RunsTextConsistencyTests(unittest.TestCase):
+    def test_runs_that_differ_from_text_need_review(self):
+        from ppt_restore.pipeline.workflow import validate_scene_proposal
+
+        class Evidence:
+            ocr_lines = ()
+            regions = ()
+            palette = ()
+            guides = ()
+            visual_primitives = ()
+
+        good = SceneNode("a", "text", "label", (0, 0, 200, 30), payload={
+            "text": "01.内容价值深化", "runs": [{"text": "01."}, {"text": "内容价值深化"}]},
+            evidence_refs=("r",))
+        bad = SceneNode("b", "text", "label", (0, 40, 200, 30), payload={
+            "text": "01.内容价值深化", "runs": [{"text": "01. 内"}, {"text": "容价值深化"}]},
+            evidence_refs=("r",))
+        _, report = validate_scene_proposal(_scene([good, bad]), Evidence())
+        joined = " ".join(report["review_reasons"])
+        self.assertIn("b: payload.runs spell", joined)
+        self.assertNotIn("a: payload.runs", joined)
