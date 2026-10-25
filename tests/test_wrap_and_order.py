@@ -171,3 +171,22 @@ class GradientStopTests(unittest.TestCase):
             self.assertIn("gradFill", names)
             if "ln" in names:
                 self.assertLess(names.index("gradFill"), names.index("ln"))
+
+
+class OcrAgreementTests(unittest.TestCase):
+    def test_tesseract_noise_is_not_a_conflict(self):
+        from ppt_restore.pipeline.workflow import _ocr_agrees
+
+        body = "A系列通过行业展会加KOL测评造势，首月销售额突破2600万，占总业绩38%"
+        self.assertTrue(_ocr_agrees("A 系列通过行业展会加KOL测评造势，首月", [body]))
+        self.assertTrue(_ocr_agrees("销售额突破2600万，占总业绩 38%", [body]))
+        self.assertTrue(_ocr_agrees('端通过"技术套餐+ 性价', ["产品端通过“技术套餐+性价比捆绑”适配区域需求"]))
+        # dropped characters on a tinted plate
+        self.assertTrue(_ocr_agrees("户集，线上 + 线下组合渗透。团", ["分别聚焦大客户集采，线上+线下组合渗透。团队端"]))
+
+    def test_wrong_numbers_and_wrong_text_still_conflict(self):
+        from ppt_restore.pipeline.workflow import _ocr_agrees
+
+        self.assertFalse(_ocr_agrees("销售额突破2600万", ["销售额突破2800万"]))
+        self.assertFalse(_ocr_agrees("15.8%", ["15.3%"]))
+        self.assertFalse(_ocr_agrees("核心市场提频", ["新品引爆市场"]))

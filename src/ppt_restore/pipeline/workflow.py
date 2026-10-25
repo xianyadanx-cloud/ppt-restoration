@@ -6,7 +6,7 @@ import json
 from dataclasses import replace
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ppt_restore.contracts.schema_v2 import EvidenceBundle, SceneNode, SceneSpecV2
 from ppt_restore.platform.evidence import extract_evidence, read_evidence
@@ -32,6 +32,54 @@ def _bbox_overlap(a, b) -> float:
     right, bottom = min(ax + aw, bx + bw), min(ay + ah, by + bh)
     intersection = max(0.0, right - left) * max(0.0, bottom - top)
     return intersection / max(1e-9, min(aw * ah, bw * bh))
+
+
+_OCR_FOLD = str.maketrans(
+    {
+        "\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'",
+        "\uff0c": ",", "\u3002": ".", "\uff1a": ":", "\uff1b": ";",
+        "\uff08": "(", "\uff09": ")", "\uff05": "%", "\uff0b": "+",
+        "\uff0f": "/", "\u3001": ",", "\uff01": "!", "\uff1f": "?",
+    }
+)
+
+
+def _ocr_normal(text: str) -> str:
+    """Fold OCR-unstable details: whitespace, quote style and punctuation width."""
+    return "".join(str(text).translate(_OCR_FOLD).split()).lower()
+
+
+def _ocr_agrees(row_text: str, values: Sequence[str], threshold: float = 0.75) -> bool:
+    """True when an OCR line is consistent with any of the node texts.
+
+    Tesseract inserts spaces between CJK and Latin, swaps quote styles and
+    drops characters on tinted plates, so exact containment produced false
+    conflicts on correct scenes.  Every digit run must still appear verbatim
+    (numbers are what matter), and the remaining text must match a window of
+    the node text with similarity >= threshold.
+    """
+    import difflib
+    import re
+
+    row = _ocr_normal(row_text)
+    if not row:
+        return True
+    for value in values:
+        text = _ocr_normal(value)
+        if not text:
+            continue
+        if row in text or text in row:
+            return True
+        if any(run not in text for run in re.findall(r"\d+(?:\.\d+)?", row)):
+            continue
+        size = len(row)
+        best = 0.0
+        for start in range(0, max(1, len(text) - size + 1)):
+            window = text[start : start + size + 2]
+            best = max(best, difflib.SequenceMatcher(None, row, window).ratio())
+            if best >= threshold:
+                return True
+    return False
 
 
 def _text_values(node: SceneNode) -> List[str]:
@@ -93,12 +141,21 @@ def validate_scene_proposal(
             row_text = str(row.get("text", "")).strip()
             if not row_text or float(row.get("confidence", 0.0)) < 0.90:
                 continue
-            if _bbox_overlap(node.bbox_px, row.get("bbox_px", (0, 0, 0, 0))) < 0.10:
+            row_box = row.get("bbox_px", (0, 0, 0, 0))
+            if _bbox_overlap(node.bbox_px, row_box) < 0.10:
                 continue
-            if values and not any(
-                row_text in value or value in row_text for value in values
-            ):
-                reasons.append("OCR conflict near %s: %s" % (node.id, row_text))
+            if values and not _ocr_agrees(row_text, values):
+                # An OCR line often spans neighbouring nodes (a KPI value
+                # next to its label); it conflicts only if no overlapping
+                # node carries it.
+                neighbours = [
+                    value
+                    for other in scene.nodes
+                    if other.id != node.id and _bbox_overlap(other.bbox_px, row_box) >= 0.10
+                    for value in _text_values(other)
+                ]
+                if not _ocr_agrees(row_text, neighbours):
+                    reasons.append("OCR conflict near %s: %s" % (node.id, row_text))
             if node.render_strategy == "raster" and node.role != "decoration":
                 reasons.append("critical OCR overlaps raster node")
         if float(node.confidence) < 0.80:
