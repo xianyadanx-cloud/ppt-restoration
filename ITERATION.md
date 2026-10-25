@@ -95,3 +95,49 @@ KPI 和概述条的色差已经收到几个 RGB 点里。采样点 (500, 180)：
 - case2 图标的玻璃外圈和细连接茎是软光栅。圆形蒙版再加大就会把箭头角裁进来（第 7 轮和第 11 轮），再缩小就丢掉外圈（第 8 轮）。DrawingML 的 glow 各向同性，做不出原图那圈镜面高光加细茎。连接圆点是原生圆形，没有那条细茎。第 11 轮把光晕加厚后，case2 ink IoU 掉到 0.552；第 13 轮收薄后回到 0.563，和第 10 轮的 0.564 同一水平。
 - 插画和三个图标仍是原图裁剪，不是可编辑矢量。台灯和气泡已经在裁切框内。
 - 没有 PowerPoint，不能给出正式 PASS。
+
+---
+
+# Gemini 主机迭代（gemini-host-fixes）
+
+从第 14 轮起改由 Gemini 3.8 Flash High 作为 Pass 1/Pass 2 主机，在产品侧修契约与编译器，再让主机重跑两页。金样例仍是同一套 `ppt-sample/case{1,2}/canonical.png`（1440×810），指标用 LibreOffice 渲染后与金样对齐的 SSIM / ink IoU / edge F1，综合分 = mean(ssim, ink_iou, edge_f1)。
+
+对照基线：
+
+| 来源 | case1 ssim/ink/edge (score) | case2 ssim/ink/edge (score) |
+|---|---|---|
+| Gemini 一次性（修契约前） | 0.712 / 0.555 / 0.315 (0.527) | 0.726 / 0.494 / 0.335 (0.518) |
+| 旧第 13 轮自报（相对其自家金样） | 0.655 / 0.728 / — | 0.668 / 0.563 / — |
+| 旧第 13 轮渲染 vs **本仓库金样** | 0.405 / 0.176 / 0.132 | 0.546 / 0.272 / 0.201 |
+
+旧第 13 轮的金样与本仓库 `ppt-sample` 金样不一致（旧金 vs 本金：c1≈0.366、c2≈0.529），所以旧表数字不能和本轮直接比；下面表一律相对本仓库金样。
+
+评测闸门是 **EVAL-ONLY**：`run_case.sh` 在 block-init 后自动把全部 block 标成 APPROVED，跳过人工审阅，只为度量主机+产品闭环。正式流水线仍要人审。
+
+## Gemini 轮次指标
+
+| 轮次 | 产品增量 | case1 ssim | case1 ink | case1 edge | case1 score | case2 ssim | case2 ink | case2 edge | case2 score |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| G1 | wrap 默认 / z_index 排序 / OCR TSV / audit content + CI | 0.703 | 0.568 | 0.323 | 0.531 | 0.693 | 0.506 | 0.328 | 0.509 |
+| G2 | + `pptrestore preview` 自检环 | 0.698 | **0.645** | 0.356 | **0.566** | 0.715 | 0.601 | 0.375 | 0.563 |
+| G3 | + text_fidelity 契约 + tesseract OCR（严格冲突） | 0.722 | 0.618 | 0.339 | 0.560 | **0.748** | **0.658** | **0.393** | **0.600** |
+| G4 | + text_size_hints + 渐变 stops 容错（dict / 色在前） | 0.700 | 0.590 | 0.362 | 0.551 | 0.719 | 0.641 | 0.373 | 0.578 |
+| G5 | + OCR 模糊同意 + runs≡text + CJK/Latin 空格闸 + 可编辑透明度 | （跑） | | | | | | | |
+
+当前 best：case1 = G2（ink 0.645），case2 = G3（score 0.600）。
+
+## 每轮改了什么（Gemini）
+
+1. **G1**：修四处死结（body 默认 wrap、按 id 的 z_index 排序、OCR TSV 引号、audit `content` 契约）和 Python 3.12 / Pillow 13 CI。主机一次性出稿；case1 审计首通 VALIDATED；case2 渐变写成 `{color, position}` 对象，编译器按 `s[0]` 取值整段丢掉（build rc=1）。
+2. **G2**：新产品命令 `pptrestore preview`（LibreOffice 渲染 → side_by_side / diff / worst regions，不写 case 状态）。Pass 1 提示强制自检约 3 轮。case1 ink 0.568→0.645，case2 ink 0.506→0.601。仍见：CJK/拉丁空格、字号偏大/偏小、渐变与玻璃层扁平。
+3. **G3**：`text_fidelity_contract` + 本机装上 tesseract chi_sim（`--ocr auto`）。OCR 冲突规则仍是严格包含，tesseract 噪声触发大量假冲突，repair 轮可能把 runs 改成 OCR 乱码（case1 `node-card3-sub` runs=`01. 内`+`容价值深化`，DOM 校验失败 build rc=1）。跑中途 preview 已带上后加的 `text_size_hints`（可编辑安装）。case2 综合分升到 0.600，成为当前 best。
+4. **G4**：preview 增加按墨迹带测的 `text_size_hints`（字形高比、建议 pt、行数、位移）；编译器 `normalize_gradient_stops` 接受 dict / 色在前。两案均出 PPTX；分数未超过 G2/G3。
+5. **G5**（进行中）：ingest 对 OCR 用折叠+数字钉死+窗口 ratio≥0.75 的模糊同意；`payload.runs` 必须拼出 `payload.text`；CJK↔拉丁/数字/`@` 间空格需 `verbatim_spaces` 才能过；编译器支持 `#RRGGBBAA` / `rgba()` / 渐变 stop `opacity`（LibreOffice 实测可透）。
+
+## 诚实上限（相对 100% 还原）
+
+- 原图黑体不在本机，Noto 笔画形状不同；含文字页 LibreOffice 下几何正确时 SSIM 也大约止于 0.80 一带。
+- LibreOffice 忽略 run `spc`；中西文空隙只能拆框或接受空格闸的取舍。
+- 图标玻璃外圈、细连接茎、径向高光是软光栅；DrawingML glow 各向同性做不出来，圆形蒙版裁切有权衡。
+- 插画仍是原图裁剪，不是可编辑矢量。
+- 主机有方差：同一提示连续两轮分数可差几个点；修产品后要多跑才能判断平台。
