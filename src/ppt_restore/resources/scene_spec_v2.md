@@ -89,7 +89,13 @@ strips, progress tracks/fills/markers, and independently styled text runs into
 atomic nodes. Use `gradient_stops`, `gradient_angle`, `shadow`, and `glow`
 style fields when measured: `gradient_stops: [[0, "#7AAFF1"], [1, "#2F78BD"]]`
 (`{"position": 0, "color": "#…"}` objects are accepted too) and
-`gradient_angle` in degrees, 0 = left→right, 90 = top→bottom. A progress bar with a visible knob uses
+`gradient_angle` in degrees, 0 = left→right, 90 = top→bottom. Transparency
+is editable too: `fill_opacity` / `line_opacity` (0–1) on any shape, and
+per-stop alpha in gradients via `{"position": 0, "color": "#2F78BD",
+"opacity": 0}`, `#RRGGBBAA` or `rgba(r,g,b,a)`. Use a stop that fades to
+opacity 0 for ribbons, glows and bands whose ends dissolve into the
+background, and a translucent white fill for frosted-glass panels, instead of
+drawing them solid. A progress bar with a visible knob uses
 `payload.marker: true`. Do not wrap plain source content in an inferred card.
 
 Every critical node must have at least one matching `evidence_refs` id. Keep

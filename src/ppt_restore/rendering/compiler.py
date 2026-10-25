@@ -123,7 +123,32 @@ def _get(obj: Any, key: str, default: Any = None) -> Any:
     return getattr(obj, key, default)
 
 
+def _split_alpha(value: Any):
+    """Return (value without alpha, alpha 0..1 or None) for #RRGGBBAA / rgba() / RGBA tuples."""
+    if isinstance(value, (tuple, list)) and len(value) >= 4:
+        a = float(value[3])
+        return tuple(value[:3]), (a / 255.0 if a > 1 else a)
+    if isinstance(value, str):
+        text = value.strip()
+        low = text.casefold().replace(" ", "")
+        if low.startswith("rgba(") and low.endswith(")"):
+            parts = low[5:-1].split(",")
+            if len(parts) == 4:
+                r, g, b = (int(float(x)) for x in parts[:3])
+                a = float(parts[3].rstrip("%")) / (100.0 if parts[3].endswith("%") else 1.0)
+                return "%02X%02X%02X" % (r, g, b), max(0.0, min(1.0, a))
+        if low.startswith("rgb(") and low.endswith(")"):
+            parts = low[4:-1].split(",")
+            if len(parts) == 3:
+                return "%02X%02X%02X" % tuple(int(float(x)) for x in parts), None
+        bare = text.lstrip("#")
+        if len(bare) == 8 and all(c in "0123456789abcdefABCDEF" for c in bare):
+            return bare[:6], int(bare[6:], 16) / 255.0
+    return value, None
+
+
 def _hex(value: Any, default: str = "000000") -> str:
+    value, _ = _split_alpha(value)
     if value is None:
         return default
     if isinstance(value, RGBColor):
@@ -325,9 +350,11 @@ class NativePrimitives:
 
     def _format_shape(self, shape, element, canvas):
         fill = _style(element, "fill", _style(element, "fill_color", None))
-        opacity = float(
-            _style(element, "fill_opacity", _style(element, "opacity", 1.0)) or 1.0
-        )
+        opacity = _style(element, "fill_opacity", _style(element, "opacity", None))
+        opacity = 1.0 if opacity is None else float(opacity)
+        fill_alpha = _split_alpha(fill)[1]
+        if fill_alpha is not None:
+            opacity *= fill_alpha
         if fill is None or str(fill).casefold() in ("none", "transparent"):
             shape.fill.background()
         else:
@@ -513,11 +540,13 @@ class NativePrimitives:
                     if insert_at is None:
                         insert_at = index
                     sppr.remove(child)
-            gs = "".join(
-                '<a:gs pos="%d"><a:srgbClr val="%s"/></a:gs>'
-                % (int(round(position * 100000)), _hex(color))
-                for position, color in stops
-            )
+            def _stop(position, color):
+                alpha = _split_alpha(color)[1]
+                inner = "" if alpha is None or alpha >= 1 else '<a:alpha val="%d"/>' % int(round(max(0.0, alpha) * 100000))
+                return '<a:gs pos="%d"><a:srgbClr val="%s">%s</a:srgbClr></a:gs>' % (
+                    int(round(position * 100000)), _hex(color), inner)
+
+            gs = "".join(_stop(position, color) for position, color in stops)
             grad = parse_xml(
                 '<a:gradFill %s rotWithShape="1"><a:gsLst>%s</a:gsLst><a:lin ang="%d" scaled="0"/></a:gradFill>'
                 % (nsdecls("a"), gs, int(round(float(angle) % 360 * 60000)))
@@ -647,10 +676,16 @@ def normalize_gradient_stops(stops):
                 if key in stop:
                     position = stop[key]
                     break
+            alpha = stop.get("opacity", stop.get("alpha"))
+            if alpha is not None and isinstance(color, str):
+                base, own = _split_alpha(color)
+                a = float(alpha) * (1.0 if own is None else own)
+                color = "#%s%02X" % (_hex(base), int(round(max(0.0, min(1.0, a)) * 255)))
         elif isinstance(stop, str):
             color = stop
         else:
-            first, second = list(stop)[:2]
+            stop = list(stop)
+            first, second = stop[:2]
             if isinstance(first, str) and not isinstance(second, str):
                 color, position = first, second
             else:

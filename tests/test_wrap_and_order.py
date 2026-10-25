@@ -239,3 +239,32 @@ class PanguSpacingTests(unittest.TestCase):
         joined = " ".join(report["review_reasons"])
         self.assertIn("a: text inserts spaces", joined)
         self.assertNotIn("b: text inserts spaces", joined)
+
+
+class AlphaColourTests(unittest.TestCase):
+    def test_alpha_forms_are_parsed_not_turned_black(self):
+        from ppt_restore.rendering.compiler import _hex, _split_alpha, normalize_gradient_stops
+
+        self.assertEqual(_hex("#1C5B9E80"), "1C5B9E")
+        self.assertAlmostEqual(_split_alpha("#1C5B9E80")[1], 128 / 255.0)
+        self.assertEqual(_split_alpha("rgba(28, 91, 158, 0.25)"), ("1C5B9E", 0.25))
+        self.assertEqual(_hex("rgb(255,0,0)"), "FF0000")
+        stops = normalize_gradient_stops(
+            [{"position": 0, "color": "#1C5B9E", "opacity": 0}, {"position": 1, "color": "#1C5B9E"}]
+        )
+        self.assertEqual(stops[0], (0.0, "#1C5B9E00"))
+
+    def test_gradient_stop_alpha_reaches_drawingml(self):
+        from pptx import Presentation
+        from pptx.util import Emu
+        from ppt_restore.rendering.compiler import NativePrimitives
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        shape = slide.shapes.add_shape(1, Emu(0), Emu(0), Emu(100000), Emu(100000))
+        prims = NativePrimitives.__new__(NativePrimitives)
+        prims._warnings = []
+        prims._gradient(shape, [["rgba(28,91,158,0)", 0], ["#1C5B9E", 1]], 0)
+        xml = shape._sp.spPr.xml
+        self.assertIn('<a:alpha val="0"/>', xml)
+        self.assertEqual(prims._warnings, [])
