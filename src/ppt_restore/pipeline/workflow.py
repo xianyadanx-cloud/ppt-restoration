@@ -82,6 +82,19 @@ def _ocr_agrees(row_text: str, values: Sequence[str], threshold: float = 0.75) -
     return False
 
 
+_CJK = "\u3400-\u9fff\uf900-\ufaff\u3000-\u303f\uff00-\uffef"
+
+
+def _pangu_spaces(text: str) -> List[str]:
+    """Spaces a model inserted between CJK and Latin/digits (``2026 年``, ``@ 鱼丸``)."""
+    import re
+
+    pattern = re.compile(
+        r"[%s][ \t]+[A-Za-z0-9@#%%&+/]|[A-Za-z0-9@#%%&+/][ \t]+[%s]" % (_CJK, _CJK)
+    )
+    return [m.group(0) for m in pattern.finditer(str(text))]
+
+
 def _text_values(node: SceneNode) -> List[str]:
     payload = node.payload or {}
     values = []
@@ -147,6 +160,13 @@ def validate_scene_proposal(
                 reasons.append(
                     "payload.runs spell %r but payload.text is %r; runs are what renders, keep them identical to the visible text"
                     % (spelled, payload["text"])
+                )
+        if not payload.get("verbatim_spaces"):
+            spaced = sorted({m for value in values for m in _pangu_spaces(value)})
+            if spaced:
+                reasons.append(
+                    "text inserts spaces between CJK and Latin/digits/symbols (%s); Chinese slides almost never draw these. Remove them, or set payload.verbatim_spaces=true if canonical.png really shows the gap"
+                    % ", ".join(repr(m) for m in spaced[:4])
                 )
         for row in ocr:
             row_text = str(row.get("text", "")).strip()

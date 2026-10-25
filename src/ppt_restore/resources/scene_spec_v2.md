@@ -133,3 +133,8 @@ characters and Latin letters or digits: write `2026年度`, `45篇`,
 `核心工作回顾/季度复盘`, `@鱼丸PPT` unless the image shows a real gap. Keep
 full-width punctuation full-width. The pass-2 audit compares character by
 character, spaces included.
+
+Ingest flags every space between a CJK character and a Latin letter, digit or
+`@#%&+/` as needing review. When the image really shows that gap (for example
+`针对 TOP30 的客户`), keep it and set `payload.verbatim_spaces: true` on that
+node.

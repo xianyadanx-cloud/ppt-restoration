@@ -213,3 +213,29 @@ class RunsTextConsistencyTests(unittest.TestCase):
         joined = " ".join(report["review_reasons"])
         self.assertIn("b: payload.runs spell", joined)
         self.assertNotIn("a: payload.runs", joined)
+
+
+class PanguSpacingTests(unittest.TestCase):
+    def test_inserted_cjk_latin_spaces_need_review_unless_verified(self):
+        from ppt_restore.pipeline.workflow import _pangu_spaces, validate_scene_proposal
+
+        self.assertEqual(_pangu_spaces("2026 年度"), ["6 年"])
+        self.assertEqual(_pangu_spaces("Q1: 基础搭建"), [])
+        self.assertEqual(_pangu_spaces("45篇"), [])
+
+        class Evidence:
+            ocr_lines = ()
+            regions = ()
+            palette = ()
+            guides = ()
+            visual_primitives = ()
+
+        spaced = SceneNode("a", "text", "label", (0, 0, 200, 30),
+                           payload={"text": "@ 鱼丸 PPT"}, evidence_refs=("r",))
+        kept = SceneNode("b", "text", "label", (0, 40, 200, 30),
+                         payload={"text": "针对 TOP30 的客户", "verbatim_spaces": True},
+                         evidence_refs=("r",))
+        _, report = validate_scene_proposal(_scene([spaced, kept]), Evidence())
+        joined = " ".join(report["review_reasons"])
+        self.assertIn("a: text inserts spaces", joined)
+        self.assertNotIn("b: text inserts spaces", joined)
