@@ -109,3 +109,17 @@ After ingest, initialize the Block gate from the user-approved blueprint.
 Build only the active Block, render its slice diff and cumulative preview, and
 wait for explicit user confirmation before `block-approve`. Never produce a
 full-slide final build while any Block remains unapproved.
+
+## Self-check before pass 2
+
+After `scene.proposed.json` validates, run
+`pptrestore preview <case> <case>/scene.proposed.json`. It compiles and renders
+the proposal without ingesting it and writes `previews/<hash>/side_by_side.png`
+(source | render), `diff.png` (red where they differ), zoomed
+`regions/region_*.png` crops and `preview.json` (metrics, worst grid cells with
+the nodes painted there, cells whose source detail is missing from the render,
+and per-node source/render mean colours). Look at the images, fix the biggest
+visible gaps in the scene (missing plates, ribbons and decorations, wrong fills
+or gradients, misplaced boxes, text that wraps or shrinks differently) and
+preview again, about three rounds. Preview never changes case state, and pixels
+only show where the render differs: re-read canonical.png before changing copy.

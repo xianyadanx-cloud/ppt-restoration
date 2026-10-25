@@ -19,6 +19,14 @@ def _parser():
     fonts.add_argument("--size-pt", type=float, required=True)
     fonts.add_argument("--width-pt", type=float, required=True)
     fonts.add_argument("--weight", type=int, default=400)
+    pv = sub.add_parser(
+        "preview",
+        help="render a proposed scene next to canonical.png and report the worst regions (host self-check)",
+    )
+    pv.add_argument("case_dir")
+    pv.add_argument("scene", help="scene.proposed.json")
+    pv.add_argument("--output-dir")
+    pv.add_argument("--renderer", choices=("libreoffice", "powerpoint", "auto"), default="libreoffice")
     patch = sub.add_parser("revise")
     patch.add_argument("case_dir")
     patch.add_argument("patch")

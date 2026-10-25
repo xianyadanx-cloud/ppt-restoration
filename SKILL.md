@@ -8,7 +8,7 @@ description: Restore a slide image or PDF page into editable PowerPoint with Sce
 Read [AGENTS.md](AGENTS.md). Install the package using [README.md](README.md).
 
 1. Run `pptrestore prepare <input> --case-dir <case> --ocr auto`.
-2. Read agent_request.json, canonical.png, evidence.json and the exported scene_spec_v2.md. Return scene.proposed.json, then independently re-read the image and return content_audit.proposed.json.
+2. Read agent_request.json, canonical.png, evidence.json and the exported scene_spec_v2.md. Return scene.proposed.json, run `pptrestore preview <case> <case>/scene.proposed.json` and fix what side_by_side.png / diff.png show (repeat ~3 times), then independently re-read the image and return content_audit.proposed.json.
 3. Run `pptrestore ingest <case> <proposal> --content-audit <audit>`. Resolve NEEDS_REVIEW reasons.
 4. Run blueprint, show the map and block table, wait for user confirmation, then block-init with the returned blueprint.
 5. Follow next, build the active block and run review. Present local diff and cumulative preview.

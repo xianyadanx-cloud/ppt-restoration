@@ -28,9 +28,11 @@ hybrid_editable permits raster decoration but requires native business content. 
 
 ## Approval flow
 
-prepare → host scene and independent audit → ingest → blueprint → user confirms → block-init → next → build → review → user confirms → block-approve.
+prepare → host scene → preview self-check (render, diff, repair) → independent audit → ingest → blueprint → user confirms → block-init → next → build → review → user confirms → block-approve.
 
 Repeat build/review/approval per block. Full assembly is blocked until every block is approved. next returns executable command arrays and current status. Do not reuse stale reports after changing a scene, image or PPTX.
+
+preview compiles and renders a proposed scene without ingesting it, and writes side_by_side.png, diff.png, region crops and preview.json so the host can repair its own scene before pass 2.
 
 revise creates a proposal restricted to the active block. optimize searches bounded numeric changes using a real-renderer probe and fixed reference regions; it does not approve or ingest candidates. Every candidate needs a fresh content audit.
 
@@ -44,6 +46,6 @@ Only a hash-bound PowerPoint render passing all gates can produce PASS. WPS and 
 
 ## Command reference
 
-Run pptrestore --help, or pptrestore COMMAND --help. Commands are prepare, canonicalize, ingest, blueprint, block-init, block-status, next, build, render, review, block-approve, revise, optimize, verify, pipeline, doctor, render-probe and font-candidates.
+Run pptrestore --help, or pptrestore COMMAND --help. Commands are prepare, canonicalize, ingest, blueprint, preview, block-init, block-status, next, build, render, review, block-approve, revise, optimize, verify, pipeline, doctor, render-probe and font-candidates.
 
 pipeline initially returns AWAITING_MULTIMODAL_SCENE_AND_AUDIT. Resume only after supplying artifacts, ingesting, and completing mandatory block checkpoints. It is not an unattended image-recognition command.
