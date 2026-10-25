@@ -123,9 +123,9 @@ KPI 和概述条的色差已经收到几个 RGB 点里。采样点 (500, 180)：
 | G3 | + text_fidelity 契约 + tesseract OCR（严格冲突） | 0.722 | 0.618 | 0.339 | 0.560 | **0.748** | **0.658** | **0.393** | **0.600** |
 | G4 | + text_size_hints + 渐变 stops 容错（dict / 色在前） | 0.700 | 0.590 | 0.362 | 0.551 | 0.719 | 0.641 | 0.373 | 0.578 |
 | G5 | + OCR 模糊同意 + runs≡text + CJK/Latin 空格闸 + 可编辑透明度 | 0.720 | 0.621 | 0.353 | 0.565 | **0.752** | **0.699** | 0.398 | **0.616** |
-| G6 | + prompts 强调透明度/玻璃/无 pangu（产品能力已齐） | （跑） | | | | | | | |
+| G6 | + prompts 强调透明度；pass2 遭配额 → 合成审计抢救 | **0.723** | 0.627 | 0.357 | **0.569** | 0.731 | **0.707** | 0.406 | 0.615 |
 
-当前 best：case1 = G2（ink 0.645 / score 0.566），case2 = G5（ink 0.699 / score 0.616）。
+当前 best：case1 = G6（score 0.569；ink 仍低于 G2 的 0.645），case2 = G5（score 0.616；G6 ink 0.707 更高但综合分略低）。
 
 ## 每轮改了什么（Gemini）
 
@@ -134,6 +134,8 @@ KPI 和概述条的色差已经收到几个 RGB 点里。采样点 (500, 180)：
 3. **G3**：`text_fidelity_contract` + 本机装上 tesseract chi_sim（`--ocr auto`）。OCR 冲突规则仍是严格包含，tesseract 噪声触发大量假冲突，repair 轮可能把 runs 改成 OCR 乱码（case1 `node-card3-sub` runs=`01. 内`+`容价值深化`，DOM 校验失败 build rc=1）。跑中途 preview 已带上后加的 `text_size_hints`（可编辑安装）。case2 综合分升到 0.600，成为当前 best。
 4. **G4**：preview 增加按墨迹带测的 `text_size_hints`（字形高比、建议 pt、行数、位移）；编译器 `normalize_gradient_stops` 接受 dict / 色在前。两案均出 PPTX；分数未超过 G2/G3。
 5. **G5**（进行中）：ingest 对 OCR 用折叠+数字钉死+窗口 ratio≥0.75 的模糊同意；`payload.runs` 必须拼出 `payload.text`；CJK↔拉丁/数字/`@` 间空格需 `verbatim_spaces` 才能过；编译器支持 `#RRGGBBAA` / `rgba()` / 渐变 stop `opacity`（LibreOffice 实测可透）。
+
+6. **G6**：prompts_r5 强调透明度/玻璃/`verbatim_spaces`。case2 场景出现 6 个 `fill_opacity` 节点（产品能力首次被主机用上）。Pass 1 完成后 Gemini 配额耗尽（约 00:28 CST，提示重置约 1h42m → ~02:10），pass2/repair 全部 429。用 EVAL-ONLY 合成 content_audit（镜像 scene，`source=eval_only_synthetic_after_quota`）抢救 ingest→build→度量；正式流水线仍要真实 pass2。case1 综合分新高 0.569；case2 ink 新高 0.707、综合分 0.615 略低于 G5。
 
 ## 诚实上限（相对 100% 还原）
 
