@@ -261,6 +261,12 @@ def prepare_case(
             "ribbon_shapes": "shape payload shape_type and process style.step_shape accept chevron, home_plate, pentagon, right_arrow",
             "word_wrap": "text style.word_wrap (bool). When omitted the compiler decides: role=title never wraps; text that fits its box width stays on one line; otherwise it wraps only if bbox height holds at least one more line than the explicit \\n count. Set it explicitly to override (true for paragraphs, false for single-line labels/KPI numbers).",
         },
+        "text_fidelity_contract": {
+            "rule": "copy every visible string character-for-character, including spaces and punctuation width",
+            "cjk_spacing": "do not insert spaces between Chinese/Japanese characters and Latin letters, digits, %, / or @ unless the image shows a real gap: write 核心工作回顾/季度复盘, 2026年度, 45篇, @鱼丸PPT, not 核心工作回顾 / 季度复盘, 2026 年度, 45 篇, @ 鱼丸 PPT",
+            "punctuation": "keep full-width punctuation (，。：（）“”) full-width and half-width (/ % : .) half-width as drawn",
+            "ocr": "high-confidence OCR lines are a cross-check; a mismatch with your text is reported at ingest, so re-read the image and keep whichever is right",
+        },
         "paint_order_contract": {
             "rule": "nodes paint back-to-front by (z_index, document order)",
             "default_z_index": 0,
@@ -303,6 +309,7 @@ def prepare_case(
                 "critical": True,
                 "status": "CONFIRMED",
             },
+            "character_check": "compare character-by-character, including spaces between CJK and Latin/digits and full-width vs half-width punctuation; an inserted or missing space is a content error",
             "conflicts": "write what the image actually shows in content; if it differs from the SceneSpec, set status NEEDS_REVIEW and explain in notes. Ingest reports the conflict; do not edit the scene from the audit pass",
         },
         "allowed_node_kinds": [

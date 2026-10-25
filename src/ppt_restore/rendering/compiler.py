@@ -505,23 +505,33 @@ class NativePrimitives:
 
     def _gradient(self, shape, stops, angle):
         try:
+            stops = normalize_gradient_stops(stops)
             sppr = shape._sp.spPr
-            for child in list(sppr):
+            insert_at = None
+            for index, child in enumerate(list(sppr)):
                 if child.tag.rsplit("}", 1)[-1] in ("solidFill", "noFill", "gradFill"):
+                    if insert_at is None:
+                        insert_at = index
                     sppr.remove(child)
             gs = "".join(
                 '<a:gs pos="%d"><a:srgbClr val="%s"/></a:gs>'
-                % (int(float(s[0]) * 100000), _hex(s[1]))
-                for s in stops
+                % (int(round(position * 100000)), _hex(color))
+                for position, color in stops
             )
-            sppr.append(
-                parse_xml(
-                    '<a:gradFill %s><a:gsLst>%s</a:gsLst><a:lin ang="%d" scaled="0"/></a:gradFill>'
-                    % (nsdecls("a"), gs, int(angle * 60000))
+            grad = parse_xml(
+                '<a:gradFill %s rotWithShape="1"><a:gsLst>%s</a:gsLst><a:lin ang="%d" scaled="0"/></a:gradFill>'
+                % (nsdecls("a"), gs, int(round(float(angle) % 360 * 60000)))
+            )
+            if insert_at is None:
+                # DrawingML order: xfrm, geometry, fill, ln, effects.
+                names = [c.tag.rsplit("}", 1)[-1] for c in sppr]
+                insert_at = next(
+                    (i for i, n in enumerate(names) if n in ("ln", "effectLst", "effectDag", "scene3d", "sp3d", "extLst")),
+                    len(names),
                 )
-            )
+            sppr.insert(insert_at, grad)
         except Exception as exc:
-            self._warnings.append("gradient unavailable: %s" % exc)
+            self._warnings.append("gradient unavailable: %r" % (exc,))
 
     def _effects(self, shape, element, canvas):
         """Apply editable DrawingML shadow/glow effects from normalized style."""
@@ -614,4 +624,47 @@ def _is_picture_shape(shape: Any) -> bool:
     return str(name or value).upper().split(" ", 1)[0] == "PICTURE"
 
 
-__all__ = ["BuildResult", "NativePrimitives", "strip_theme_style"]
+__all__ = ["BuildResult", "NativePrimitives", "normalize_gradient_stops", "strip_theme_style"]
+
+
+def normalize_gradient_stops(stops):
+    """Accept the stop shapes hosts actually write and return [(pos 0..1, color)].
+
+    Supported: ``[pos, color]``, ``[color, pos]``, ``{"position"|"pos"|"offset":
+    p, "color": c}`` and bare colours (spread evenly).  Positions may be 0..1 or
+    0..100 (percent).
+    """
+
+    items = list(stops or [])
+    if len(items) < 2:
+        raise ValueError("gradient needs at least two stops")
+    parsed = []
+    for index, stop in enumerate(items):
+        position = color = None
+        if isinstance(stop, dict):
+            color = stop.get("color", stop.get("colour", stop.get("hex")))
+            for key in ("position", "pos", "offset", "at", "stop"):
+                if key in stop:
+                    position = stop[key]
+                    break
+        elif isinstance(stop, str):
+            color = stop
+        else:
+            first, second = list(stop)[:2]
+            if isinstance(first, str) and not isinstance(second, str):
+                color, position = first, second
+            else:
+                position, color = first, second
+        if not isinstance(color, str):
+            raise ValueError("gradient stop %d has no colour" % index)
+        if isinstance(position, str):
+            position = float(position.strip().rstrip("%")) / (100.0 if position.strip().endswith("%") else 1.0)
+        parsed.append([None if position is None else float(position), color])
+    if all(p is None for p, _ in parsed):
+        last = len(parsed) - 1
+        parsed = [[i / float(last), c] for i, (_, c) in enumerate(parsed)]
+    if any(p is None for p, _ in parsed):
+        raise ValueError("gradient stops mix positioned and unpositioned entries")
+    if max(p for p, _ in parsed) > 1.0:
+        parsed = [[p / 100.0, c] for p, c in parsed]
+    return [(min(1.0, max(0.0, p)), c) for p, c in parsed]

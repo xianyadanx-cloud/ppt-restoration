@@ -125,3 +125,49 @@ class PaintOrderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GradientStopTests(unittest.TestCase):
+    def test_stop_shapes_hosts_write(self):
+        from ppt_restore.rendering.compiler import normalize_gradient_stops
+
+        expected = [(0.0, "#7AAFF1"), (1.0, "#2F78BD")]
+        self.assertEqual(normalize_gradient_stops([[0, "#7AAFF1"], [1, "#2F78BD"]]), expected)
+        self.assertEqual(
+            normalize_gradient_stops(
+                [{"color": "#7AAFF1", "position": 0.0}, {"color": "#2F78BD", "position": 1.0}]
+            ),
+            expected,
+        )
+        self.assertEqual(normalize_gradient_stops([["#7AAFF1", 0], ["#2F78BD", 100]]), expected)
+        self.assertEqual(normalize_gradient_stops(["#7AAFF1", "#2F78BD"]), expected)
+        self.assertEqual(
+            normalize_gradient_stops([{"color": "#7AAFF1", "offset": "0%"}, {"color": "#2F78BD", "offset": "100%"}]),
+            expected,
+        )
+
+    def test_dict_stops_compile_without_warning_and_before_line(self):
+        from pptx import Presentation
+
+        node = SceneNode(
+            "band", "shape", "decoration", (10, 10, 300, 60),
+            style={
+                "gradient_stops": [{"color": "#7AAFF1", "position": 0}, {"color": "#2F78BD", "position": 1}],
+                "gradient_angle": 90,
+                "line_color": "#FFFFFF",
+                "line_width_pt": 1,
+            },
+        )
+        scene = SceneSpecV2(
+            "2.0", "a" * 64, "b" * 64, {"width_px": 1440, "height_px": 810}, (node,),
+            state="VALIDATED",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "g.pptx"
+            result = SceneSpecCompiler().compile(scene, out)
+            self.assertFalse([w for w in result.warnings if "gradient" in w], result.warnings)
+            sppr = Presentation(str(out)).slides[0].shapes[0]._element.spPr
+            names = [child.tag.rsplit("}", 1)[-1] for child in sppr]
+            self.assertIn("gradFill", names)
+            if "ln" in names:
+                self.assertLess(names.index("gradFill"), names.index("ln"))

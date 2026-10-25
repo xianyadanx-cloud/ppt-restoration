@@ -87,7 +87,9 @@ visuals. Decompose layered plates, offset borders, freeform side faces,
 floating label tabs, shadows, glows, gradient stops, connectors, table row
 strips, progress tracks/fills/markers, and independently styled text runs into
 atomic nodes. Use `gradient_stops`, `gradient_angle`, `shadow`, and `glow`
-style fields when measured. A progress bar with a visible knob uses
+style fields when measured: `gradient_stops: [[0, "#7AAFF1"], [1, "#2F78BD"]]`
+(`{"position": 0, "color": "#…"}` objects are accepted too) and
+`gradient_angle` in degrees, 0 = left→right, 90 = top→bottom. A progress bar with a visible knob uses
 `payload.marker: true`. Do not wrap plain source content in an inferred card.
 
 Every critical node must have at least one matching `evidence_refs` id. Keep
@@ -123,3 +125,11 @@ visible gaps in the scene (missing plates, ribbons and decorations, wrong fills
 or gradients, misplaced boxes, text that wraps or shrinks differently) and
 preview again, about three rounds. Preview never changes case state, and pixels
 only show where the render differs: re-read canonical.png before changing copy.
+
+## Text fidelity
+
+Copy visible strings exactly. Chinese slides rarely put spaces between CJK
+characters and Latin letters or digits: write `2026年度`, `45篇`,
+`核心工作回顾/季度复盘`, `@鱼丸PPT` unless the image shows a real gap. Keep
+full-width punctuation full-width. The pass-2 audit compares character by
+character, spaces included.
