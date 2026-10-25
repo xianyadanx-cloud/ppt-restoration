@@ -68,6 +68,40 @@ class MultimodalAuditTests(unittest.TestCase):
             )
             self.assertFalse((case / "scene.json").exists())
 
+    def test_bare_string_content_is_accepted_for_single_field_nodes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, proposed, audit_path, _ = self._scene_case(Path(directory))
+            data = json.loads(audit_path.read_text(encoding="utf-8"))
+            data["items"][0]["content"] = "Hello"
+            audit_path.write_text(json.dumps(data), encoding="utf-8")
+            result = ingest_scene(case, proposed, content_audit_path=audit_path)
+            self.assertEqual(result["status"], "VALIDATED", result)
+
+    def test_non_object_content_gets_actionable_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, proposed, audit_path, _ = self._scene_case(Path(directory))
+            data = json.loads(audit_path.read_text(encoding="utf-8"))
+            data["items"][0]["content"] = ["Hello"]
+            audit_path.write_text(json.dumps(data), encoding="utf-8")
+            result = ingest_scene(case, proposed, content_audit_path=audit_path)
+            self.assertEqual(result["status"], "NEEDS_REVIEW")
+            reasons = " ".join(result["audit"]["review_reasons"])
+            self.assertIn("must be a JSON object", reasons)
+            self.assertIn('{"text": "Hello"}', reasons)
+
+    def test_agent_request_publishes_audit_content_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case, _, _, _ = self._scene_case(Path(directory))
+            request = json.loads((case / "agent_request.json").read_text(encoding="utf-8"))
+            contract = request["content_audit_contract"]
+            self.assertEqual(
+                sorted(contract["content_fields_by_kind"]["kpi_card"]),
+                ["delta", "label", "value"],
+            )
+            self.assertIsInstance(contract["example_item"]["content"], dict)
+            self.assertIn("word_wrap", request["typography_contract"])
+            self.assertIn("document order", request["paint_order_contract"]["rule"])
+
     def test_audit_template_is_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             case, proposed, _, scene = self._scene_case(Path(directory))

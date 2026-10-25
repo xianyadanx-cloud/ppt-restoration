@@ -26,7 +26,13 @@ canonical/evidence hashes, the semantic `scene_sha256`, completed
 `pass_1_scene_extraction` and `pass_2_content_audit` entries, and one item for
 every critical content node. Each item records `node_id`, `role`, `kind`,
 `bbox_norm`, `content`, `confidence`, `evidence_refs`, `critical`, and a
-`CONFIRMED` or `NEEDS_REVIEW` status. Audit titles, body text, numbers,
+`CONFIRMED` or `NEEDS_REVIEW` status. `content` is a JSON **object** with the
+same content fields as the node payload, never a bare string: text and badge
+nodes use `{"text": "..."}`, `kpi_card` uses `{"label": "...", "value": "..."}`
+(plus `delta` when present), tables use `{"table_cells": [[...]]}`, charts use
+`{"categories": [...], "series": [...]}`, process nodes use `{"steps": [...]}`.
+`agent_request.json` → `content_audit_contract` lists the fields per kind and a
+full example item. Audit titles, body text, numbers,
 percentages, units, table cells, labels, and footnotes. A conflict or low
 confidence must remain `NEEDS_REVIEW`; do not silently resolve it.
 Run pass 2 in an independent review context. Do not copy pass-1 values or mark
@@ -50,7 +56,19 @@ historical defaults. Ribbon and quarter banners use shape types `chevron`,
 `home_plate`, `pentagon`, or `right_arrow`, or a `process` node with
 `style.step_shape` set to one of those. `style.shape_adjust` is a 0–1 preset
 adjustment (or a list) for the arrow depth. Theme shadows are not drawn unless
-`style.shadow` is set. `style.char_spacing_pt` sets run tracking in points.
+`style.shadow` is set.
+
+`style.word_wrap` (boolean) controls wrapping inside a text frame. When it is
+omitted the compiler decides: `role: "title"` never wraps; text that already
+fits the box width stays on one line; otherwise it wraps only when the box is
+tall enough for at least one more line than the explicit `\n` count. Measure
+a paragraph's full multi-line box (or set `word_wrap: true`) and keep
+single-line labels and KPI numbers in single-line-height boxes (or set
+`word_wrap: false`).
+
+Paint order is `(z_index, document order)`, back to front. `z_index` defaults
+to 0, so write background, plates and cards before the text and icons that sit
+on them, or give explicit `z_index` values. Node ids never affect ordering. `style.char_spacing_pt` sets run tracking in points.
 An image payload `mask: "circle"` keeps a circular alpha disk for icons that
 sit on top of native shapes.
 

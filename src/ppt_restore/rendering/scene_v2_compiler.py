@@ -19,7 +19,8 @@ from ppt_restore.contracts.schema_v2 import (
 from ppt_restore.platform.provenance import sha256_file
 from ppt_restore.quality.build_manifest import create_build_manifest
 from ppt_restore.rendering.compiler import NativePrimitives, set_run_typeface
-from ppt_restore.rendering.geometry import box_px_to_emu
+from ppt_restore.rendering.geometry import CanvasSpec, box_px_to_emu
+from ppt_restore.rendering.text_fit import auto_word_wrap
 
 try:
     from pptx import Presentation
@@ -91,6 +92,32 @@ def _selected_nodes(
     return selected
 
 
+def scene_canvas_spec(scene: SceneSpecV2) -> CanvasSpec:
+    """Physical slide size for a SceneSpec canvas (16:9 → 13.333 in wide)."""
+
+    raw = scene.canvas
+    wp, hp = int(raw.get("width_px", 1440)), int(raw.get("height_px", 810))
+    wi, hi = raw.get("width_in"), raw.get("height_in")
+    if wi is None or hi is None:
+        wi = 10.0 if abs(wp / hp - 4 / 3) < 0.01 else 13.333333333333334
+        hi = wi * hp / wp
+    return CanvasSpec(wp, hp, float(wi), float(hi))
+
+
+def paint_order(nodes: Sequence[SceneNode]) -> List[SceneNode]:
+    """Back-to-front node order: ``z_index`` first, then document order.
+
+    Hosts often omit ``z_index``.  Sorting ties by id (the historical rule)
+    put e.g. ``node-slide-plate`` above most content purely alphabetically;
+    document order is the order a host naturally writes background → content,
+    so it is the only sensible tie-breaker.
+    """
+
+    indexed = list(enumerate(nodes))
+    indexed.sort(key=lambda pair: (int(pair[1].z_index), pair[0]))
+    return [node for _, node in indexed]
+
+
 def lower_scene(
     scene: SceneSpecV2, blocks: Optional[Sequence[str]] = None
 ) -> RenderPlan:
@@ -98,15 +125,28 @@ def lower_scene(
 
     operations: List[RenderOp] = []
     warnings: List[str] = []
-    for node in sorted(
-        _selected_nodes(scene, blocks), key=lambda item: (int(item.z_index), item.id)
-    ):
+    canvas_spec = scene_canvas_spec(scene)
+    for node in paint_order(_selected_nodes(scene, blocks)):
         kind = str(node.kind)
         payload = _payload(node)
         style = _style(node)
         if kind == NodeKind.GROUP.value:
             continue
         if kind == NodeKind.TEXT.value:
+            if "word_wrap" not in style:
+                text_value = payload.get("text", "")
+                if not text_value and payload.get("runs"):
+                    text_value = "".join(
+                        str(run.get("text", "")) if isinstance(run, Mapping) else ""
+                        for run in payload.get("runs") or ()
+                    )
+                style["word_wrap"] = auto_word_wrap(
+                    str(text_value or ""),
+                    node.bbox_px,
+                    style,
+                    role=str(node.role),
+                    canvas=canvas_spec,
+                )
             operations.append(
                 _op(
                     node,
@@ -472,9 +512,8 @@ class SceneSpecCompiler(NativePrimitives):
         try:
             image_path = Path(canonical_path) if canonical_path else None
             count = 0
-            for op in sorted(
-                plan.operations, key=lambda item: (int(item.z_index), item.id)
-            ):
+            # Stable sort: equal z keeps the lowering (document) order.
+            for op in sorted(plan.operations, key=lambda item: int(item.z_index)):
                 try:
                     if op.op_type == "image":
                         if image_path is None or not image_path.is_file():
@@ -881,4 +920,4 @@ def _build_result(self, output_path, prs, scene, count, canvas):
     return result
 
 
-__all__ = ["lower_scene", "SceneSpecCompiler"]
+__all__ = ["lower_scene", "paint_order", "scene_canvas_spec", "SceneSpecCompiler"]

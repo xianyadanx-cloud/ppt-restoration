@@ -8,6 +8,7 @@ from ppt_restore.platform.ocr import (
     TesseractOcrProvider,
     TextDetection,
     merge_line_detections,
+    parse_tesseract_tsv,
     run_ocr,
 )
 
@@ -32,6 +33,24 @@ class _FakeProvider(OcrProvider):
 
 
 class OcrCoreTests(unittest.TestCase):
+    def test_tesseract_tsv_quotes_do_not_swallow_rows(self):
+        header = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext"
+        rows = [
+            "5\t1\t1\t1\t1\t1\t10\t20\t30\t14\t95.1\t推出\u201c三年",
+            '5\t1\t1\t1\t1\t2\t42\t20\t12\t14\t91.0\t"',
+            '5\t1\t1\t1\t1\t3\t56\t20\t60\t14\t93.5\t"技术套餐+性价比捆绑"',
+            "5\t1\t1\t1\t1\t4\t120\t20\t20\t14\t96.9\t年",
+            "4\t1\t1\t1\t2\t0\t0\t0\t100\t20\t-1\t",
+        ]
+        detections = parse_tesseract_tsv("\n".join([header] + rows) + "\n", 100, 5)
+        self.assertEqual(
+            [d.text for d in detections],
+            ["推出\u201c三年", '"', '"技术套餐+性价比捆绑"', "年"],
+        )
+        self.assertFalse(any("\t" in d.text or "\n" in d.text for d in detections))
+        self.assertEqual(detections[2].bbox_px, (156, 25, 60, 14))
+        self.assertAlmostEqual(detections[3].confidence, 0.969)
+
     def test_imported_text_is_explicitly_labelled(self):
         detection = TextDetection("示例", (1, 2, 30, 12), 0.8, "imported_text")
         result = ImportedTextProvider([detection]).recognize(None)

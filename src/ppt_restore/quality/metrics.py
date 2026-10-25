@@ -27,6 +27,15 @@ DEFAULT_METRIC_THRESHOLDS: Dict[str, float] = {
 }
 
 
+
+def _pixels(image):
+    """Flat pixel list; ``getdata`` is deprecated from Pillow 13 (removed in 14)."""
+
+    flattened = getattr(image, "get_flattened_data", None)
+    if flattened is not None:
+        return list(flattened())
+    return list(image.getdata())
+
 def _load_image(value: Any) -> Image.Image:
     if isinstance(value, Image.Image):
         return value.convert("RGB")
@@ -75,8 +84,8 @@ def calculate_ssim(render: Image.Image, truth: Image.Image, window: int = 8) -> 
     for top in range(0, height, max(1, window)):
         for left in range(0, width, max(1, window)):
             box = (left, top, min(width, left + window), min(height, top + window))
-            a = list(render.crop(box).getdata())
-            b = list(truth.crop(box).getdata())
+            a = _pixels(render.crop(box))
+            b = _pixels(truth.crop(box))
             if not a:
                 continue
             mean_a = sum(a) / len(a)
@@ -96,8 +105,8 @@ def calculate_explicit_error_rate(
     render: Image.Image, truth: Image.Image, delta: int = 16
 ) -> float:
     render, truth = _aligned_images(render.convert("RGB"), truth.convert("RGB"))
-    a = list(render.getdata())
-    b = list(truth.getdata())
+    a = _pixels(render)
+    b = _pixels(truth)
     if not a:
         return 0.0
     errors = sum(
@@ -115,8 +124,8 @@ def calculate_edge_f1(
     render: Image.Image, truth: Image.Image, threshold: int = 30
 ) -> float:
     render, truth = _aligned_images(render.convert("RGB"), truth.convert("RGB"))
-    a = list(_edge_mask(render, threshold).getdata())
-    b = list(_edge_mask(truth, threshold).getdata())
+    a = _pixels(_edge_mask(render, threshold))
+    b = _pixels(_edge_mask(truth, threshold))
     true_positive = sum(1 for x, y in zip(a, b) if x and y)
     predicted = sum(1 for x in a if x)
     actual = sum(1 for y in b if y)
@@ -167,8 +176,8 @@ def calculate_tolerant_edge_f1(
     def mask(image: Image.Image) -> Image.Image:
         return _edge_mask(image, threshold).filter(kernel)
 
-    a = list(mask(render).getdata())
-    b = list(mask(truth).getdata())
+    a = _pixels(mask(render))
+    b = _pixels(mask(truth))
     true_positive = sum(1 for x, y in zip(a, b) if x and y)
     predicted = sum(1 for x in a if x)
     actual = sum(1 for y in b if y)
@@ -195,8 +204,8 @@ def calculate_ink_iou(
     kernel = ImageFilter.MaxFilter(size if size % 2 else size + 1)
     a = _detail_mask(render, threshold).filter(kernel)
     b = _detail_mask(truth, threshold).filter(kernel)
-    left = list(a.getdata())
-    right = list(b.getdata())
+    left = _pixels(a)
+    right = _pixels(b)
     intersection = sum(1 for x, y in zip(left, right) if x and y)
     union = sum(1 for x, y in zip(left, right) if x or y)
     if union == 0:
@@ -305,7 +314,7 @@ def calculate_color_delta(render: Image.Image, truth: Image.Image) -> Dict[str, 
     """Return deterministic CIEDE2000 mean and P95 values in sRGB/D65."""
 
     render, truth = _aligned_images(render.convert("RGB"), truth.convert("RGB"))
-    first, second = list(render.getdata()), list(truth.getdata())
+    first, second = _pixels(render), _pixels(truth)
     # Bound CPU cost on full-size slides while sampling a stable grid.
     stride = max(1, int(math.ceil(math.sqrt(max(1, len(first)) / 100000.0))))
     distances = [

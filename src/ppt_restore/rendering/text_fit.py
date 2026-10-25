@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Mapping, Optional, Sequence, Tuple
 
+from ppt_restore.rendering.geometry import PT_PER_INCH as PT_PER_INCH_FLOAT
 from ppt_restore.rendering.geometry import CanvasSpec, px_to_pt
 
 try:
@@ -257,3 +258,92 @@ def fit_text_frame(
         "ascent_gap_em": ascent_gap,
         "metrics_em": metrics,
     }
+
+
+def estimate_text_width_em(line: str) -> float:
+    """Font-independent advance estimate for one line, in em.
+
+    CJK ideographs and full-width punctuation are 1 em; Latin, digits and
+    ASCII punctuation are narrower.  This is deliberately renderer-free so
+    the wrap decision in :func:`auto_word_wrap` is deterministic.
+    """
+
+    total = 0.0
+    for char in str(line):
+        code = ord(char)
+        if char == " ":
+            total += 0.3
+        elif code < 0x80:
+            total += 0.62 if (char.isupper() or char.isdigit()) else 0.52
+        elif 0x2000 <= code < 0x2070:  # general punctuation (quotes, dashes)
+            total += 0.6
+        else:
+            total += 1.0
+    return total
+
+
+def auto_word_wrap(
+    text: str,
+    bbox_px: Sequence[float],
+    style: Optional[Mapping[str, object]] = None,
+    *,
+    role: Optional[str] = None,
+    canvas: Optional[CanvasSpec] = None,
+) -> bool:
+    """Decide ``word_wrap`` for a text node that did not set it explicitly.
+
+    Body copy measured as a multi-line box must wrap inside its frame, or every
+    paragraph renders as one line that runs off the slide.  Titles, KPI
+    numbers and other single-line labels must *not* wrap: a font that renders
+    a few pixels wider than the source would otherwise push the last glyph to
+    a second line.  The rule is therefore:
+
+    * ``role == "title"`` never auto-wraps;
+    * text whose longest explicit line already fits the box width stays on
+      one line (wrapping could only hurt);
+    * otherwise wrap only when the box is tall enough for at least one more
+      line than the explicit ``\\n`` line count.
+    """
+
+    style = dict(style or {})
+    if str(role or "") == "title":
+        return False
+    spec = canvas or CanvasSpec()
+    x, y, width, height = [float(v) for v in bbox_px]
+    if width <= 0 or height <= 0:
+        return False
+    px_per_pt = canvas_dpi(spec) / PT_PER_INCH_FLOAT
+    try:
+        size_pt = float(style.get("font_size_pt", style.get("font_size", 12)) or 12)
+    except (TypeError, ValueError):
+        size_pt = 12.0
+    size_px = max(1.0, size_pt * px_per_pt)
+    try:
+        spacing = float(style.get("line_spacing", 1.0) or 1.0)
+    except (TypeError, ValueError):
+        spacing = 1.0
+    if spacing > 4.0:  # a point value written into line_spacing
+        line_px = spacing * px_per_pt
+    else:
+        line_px = size_px * 1.2 * max(spacing, 0.8)
+    if style.get("line_spacing_pt"):
+        try:
+            line_px = float(style["line_spacing_pt"]) * px_per_pt
+        except (TypeError, ValueError):
+            pass
+    lines = str(text or "").split("\n")
+    longest_px = max(estimate_text_width_em(line) for line in lines) * size_px
+    char_px = 0.0
+    try:
+        char_px = float(style.get("char_spacing_pt", 0) or 0) * px_per_pt
+    except (TypeError, ValueError):
+        char_px = 0.0
+    longest_px += char_px * max(len(line) for line in lines)
+    if longest_px <= width * 1.08:
+        return False
+    if style.get("box_is_ink"):
+        # Ink height of n lines ~= (n - 1) * pitch + 0.92 em.
+        capacity = 1.0 + max(0.0, height - 0.92 * size_px) / line_px
+    else:
+        capacity = height / line_px
+    return capacity >= len(lines) + 0.75

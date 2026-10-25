@@ -196,6 +196,28 @@ def _norm_struct(value: Any) -> Any:
     return value
 
 
+# Shape of ``items[].content`` per node kind.  Published in agent_request.json
+# so hosts do not guess (a bare string for a kpi_card is ambiguous).
+CONTENT_FIELDS_BY_KIND = {
+    "text": {"text": "<exact visible text, \\n between lines>"},
+    "badge": {"text": "<badge text>"},
+    "kpi_card": {"label": "<label>", "value": "<value>", "delta": "<optional delta>"},
+    "progress_bar": {"label": "<visible label, only if payload.label exists>"},
+    "table": {"table_cells": [["<r1c1>", "<r1c2>"], ["<r2c1>", "<r2c2>"]]},
+    "chart": {"categories": ["<c1>"], "series": [{"name": "<s>", "values": [0]}]},
+    "process": {"steps": ["<step 1>", "<step 2>"]},
+}
+
+
+def content_shape_example(node: SceneNode) -> Dict[str, Any]:
+    """Return a minimal ``content`` object for ``node`` (fields from its payload)."""
+
+    expected = node_content(node)
+    if expected:
+        return {key: expected[key] for key in sorted(expected)}
+    return dict(CONTENT_FIELDS_BY_KIND.get(str(node.kind), {"text": "..."}))
+
+
 def _audit_item_content(item: Mapping[str, Any]) -> Dict[str, Any]:
     content = item.get("content")
     if isinstance(content, Mapping):
@@ -351,6 +373,25 @@ def validate_content_audit(
                 )
 
         expected_content = node_content(node)
+        raw_content = item.get("content")
+        if isinstance(raw_content, str) and len(expected_content) == 1:
+            # A bare string is unambiguous for single-field nodes (text, badge,
+            # labelled progress bar): treat it as that one field.
+            item["content"] = {next(iter(expected_content)): raw_content}
+        elif raw_content is not None and not isinstance(raw_content, Mapping):
+            reasons.append(
+                "%s audit content must be a JSON object with the node's content "
+                "fields %s, e.g. %s (got %s)"
+                % (
+                    node_id,
+                    sorted(expected_content) or ["text"],
+                    json.dumps(
+                        content_shape_example(node), ensure_ascii=False
+                    ),
+                    type(raw_content).__name__,
+                )
+            )
+            continue
         actual_content = _audit_item_content(item)
         if node_id in critical_nodes and expected_content and not actual_content:
             reasons.append("%s critical content audit item has no content" % node_id)
@@ -459,4 +500,6 @@ __all__ = [
     "content_audit_sha256",
     "validate_content_audit",
     "make_content_audit",
+    "content_shape_example",
+    "CONTENT_FIELDS_BY_KIND",
 ]

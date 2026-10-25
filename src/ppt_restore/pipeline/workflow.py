@@ -12,7 +12,11 @@ from ppt_restore.contracts.schema_v2 import EvidenceBundle, SceneNode, SceneSpec
 from ppt_restore.platform.evidence import extract_evidence, read_evidence
 from ppt_restore.platform.io import write_json
 from ppt_restore.platform.provenance import sha256_file
-from ppt_restore.quality.audit import ContentAudit, validate_content_audit
+from ppt_restore.quality.audit import (
+    CONTENT_FIELDS_BY_KIND,
+    ContentAudit,
+    validate_content_audit,
+)
 from ppt_restore.quality.content_inventory import (
     scene_to_content_inventory,
     write_content_inventory,
@@ -255,6 +259,39 @@ def prepare_case(
             "ink_box": "style.box_is_ink=true expands the frame by the font ascent so glyphs sit on the measured ink",
             "kpi_layout": "kpi_card style.layout is label_on_top (default) or value_on_top; label_font_size_pt and value_font_size_pt override component defaults",
             "ribbon_shapes": "shape payload shape_type and process style.step_shape accept chevron, home_plate, pentagon, right_arrow",
+            "word_wrap": "text style.word_wrap (bool). When omitted the compiler decides: role=title never wraps; text that fits its box width stays on one line; otherwise it wraps only if bbox height holds at least one more line than the explicit \\n count. Set it explicitly to override (true for paragraphs, false for single-line labels/KPI numbers).",
+        },
+        "paint_order_contract": {
+            "rule": "nodes paint back-to-front by (z_index, document order)",
+            "default_z_index": 0,
+            "guidance": "write background/plates first and content later, or set explicit z_index; ids are never used for ordering",
+        },
+        "content_audit_contract": {
+            "artifact": str((root / "content_audit.proposed.json").resolve()),
+            "item_fields": {
+                "node_id": "id of a SceneSpec node",
+                "role": "same role as the node",
+                "kind": "same kind as the node",
+                "bbox_norm": "same bbox_norm as the node (tolerance 1.5)",
+                "content": "JSON OBJECT whose keys are the node's content fields (see content_fields_by_kind); never a bare string",
+                "confidence": "0..1, calibrated; < 0.80 routes to review",
+                "evidence_refs": "must include every evidence_ref of the node",
+                "critical": "true for every non-decoration, non-container, non-group node",
+                "status": "CONFIRMED or NEEDS_REVIEW",
+            },
+            "content_fields_by_kind": CONTENT_FIELDS_BY_KIND,
+            "example_item": {
+                "node_id": "node-kpi-1",
+                "role": "metric",
+                "kind": "kpi_card",
+                "bbox_norm": [600, 120, 90, 80],
+                "content": {"label": "用户环比增长", "value": "15.8%"},
+                "confidence": 0.95,
+                "evidence_refs": ["region-0003"],
+                "critical": True,
+                "status": "CONFIRMED",
+            },
+            "conflicts": "write what the image actually shows in content; if it differs from the SceneSpec, set status NEEDS_REVIEW and explain in notes. Ingest reports the conflict; do not edit the scene from the audit pass",
         },
         "allowed_node_kinds": [
             "group",

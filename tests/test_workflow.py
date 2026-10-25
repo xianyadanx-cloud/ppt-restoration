@@ -135,7 +135,7 @@ class WorkflowTests(unittest.TestCase):
                 request["degradation"]["do_not_infer_text_absence_from_empty_ocr"]
             )
             self.assertEqual(result["degradation"], request["degradation"])
-            self.assertTrue(request["canonical_path"].endswith("/canonical.png"))
+            self.assertEqual(Path(request["canonical_path"]).name, "canonical.png")
             self.assertEqual(len(request["canonical_sha256"]), 64)
             self.assertEqual(len(request["evidence_sha256"]), 64)
 
