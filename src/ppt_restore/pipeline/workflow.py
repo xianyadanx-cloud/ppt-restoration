@@ -6,13 +6,17 @@ import json
 from dataclasses import replace
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ppt_restore.contracts.schema_v2 import EvidenceBundle, SceneNode, SceneSpecV2
 from ppt_restore.platform.evidence import extract_evidence, read_evidence
 from ppt_restore.platform.io import write_json
 from ppt_restore.platform.provenance import sha256_file
-from ppt_restore.quality.audit import ContentAudit, validate_content_audit
+from ppt_restore.quality.audit import (
+    CONTENT_FIELDS_BY_KIND,
+    ContentAudit,
+    validate_content_audit,
+)
 from ppt_restore.quality.content_inventory import (
     scene_to_content_inventory,
     write_content_inventory,
@@ -28,6 +32,67 @@ def _bbox_overlap(a, b) -> float:
     right, bottom = min(ax + aw, bx + bw), min(ay + ah, by + bh)
     intersection = max(0.0, right - left) * max(0.0, bottom - top)
     return intersection / max(1e-9, min(aw * ah, bw * bh))
+
+
+_OCR_FOLD = str.maketrans(
+    {
+        "\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'",
+        "\uff0c": ",", "\u3002": ".", "\uff1a": ":", "\uff1b": ";",
+        "\uff08": "(", "\uff09": ")", "\uff05": "%", "\uff0b": "+",
+        "\uff0f": "/", "\u3001": ",", "\uff01": "!", "\uff1f": "?",
+    }
+)
+
+
+def _ocr_normal(text: str) -> str:
+    """Fold OCR-unstable details: whitespace, quote style and punctuation width."""
+    return "".join(str(text).translate(_OCR_FOLD).split()).lower()
+
+
+def _ocr_agrees(row_text: str, values: Sequence[str], threshold: float = 0.75) -> bool:
+    """True when an OCR line is consistent with any of the node texts.
+
+    Tesseract inserts spaces between CJK and Latin, swaps quote styles and
+    drops characters on tinted plates, so exact containment produced false
+    conflicts on correct scenes.  Every digit run must still appear verbatim
+    (numbers are what matter), and the remaining text must match a window of
+    the node text with similarity >= threshold.
+    """
+    import difflib
+    import re
+
+    row = _ocr_normal(row_text)
+    if not row:
+        return True
+    for value in values:
+        text = _ocr_normal(value)
+        if not text:
+            continue
+        if row in text or text in row:
+            return True
+        if any(run not in text for run in re.findall(r"\d+(?:\.\d+)?", row)):
+            continue
+        size = len(row)
+        best = 0.0
+        for start in range(0, max(1, len(text) - size + 1)):
+            window = text[start : start + size + 2]
+            best = max(best, difflib.SequenceMatcher(None, row, window).ratio())
+            if best >= threshold:
+                return True
+    return False
+
+
+_CJK = "\u3400-\u9fff\uf900-\ufaff\u3000-\u303f\uff00-\uffef"
+
+
+def _pangu_spaces(text: str) -> List[str]:
+    """Spaces a model inserted between CJK and Latin/digits (``2026 年``, ``@ 鱼丸``)."""
+    import re
+
+    pattern = re.compile(
+        r"[%s][ \t]+[A-Za-z0-9@#%%&+/]|[A-Za-z0-9@#%%&+/][ \t]+[%s]" % (_CJK, _CJK)
+    )
+    return [m.group(0) for m in pattern.finditer(str(text))]
 
 
 def _text_values(node: SceneNode) -> List[str]:
@@ -85,16 +150,43 @@ def validate_scene_proposal(
         if missing:
             reasons.append("missing evidence reference(s): %s" % ", ".join(missing))
         values = _text_values(node)
+        payload = node.payload or {}
+        runs = payload.get("runs")
+        if isinstance(payload.get("text"), str) and isinstance(runs, list) and runs:
+            spelled = "".join(
+                str(run.get("text", "")) for run in runs if isinstance(run, Mapping)
+            )
+            if spelled.replace("\n", "") != payload["text"].replace("\n", ""):
+                reasons.append(
+                    "payload.runs spell %r but payload.text is %r; runs are what renders, keep them identical to the visible text"
+                    % (spelled, payload["text"])
+                )
+        if not payload.get("verbatim_spaces"):
+            spaced = sorted({m for value in values for m in _pangu_spaces(value)})
+            if spaced:
+                reasons.append(
+                    "text inserts spaces between CJK and Latin/digits/symbols (%s); Chinese slides almost never draw these. Remove them, or set payload.verbatim_spaces=true if canonical.png really shows the gap"
+                    % ", ".join(repr(m) for m in spaced[:4])
+                )
         for row in ocr:
             row_text = str(row.get("text", "")).strip()
             if not row_text or float(row.get("confidence", 0.0)) < 0.90:
                 continue
-            if _bbox_overlap(node.bbox_px, row.get("bbox_px", (0, 0, 0, 0))) < 0.10:
+            row_box = row.get("bbox_px", (0, 0, 0, 0))
+            if _bbox_overlap(node.bbox_px, row_box) < 0.10:
                 continue
-            if values and not any(
-                row_text in value or value in row_text for value in values
-            ):
-                reasons.append("OCR conflict near %s: %s" % (node.id, row_text))
+            if values and not _ocr_agrees(row_text, values):
+                # An OCR line often spans neighbouring nodes (a KPI value
+                # next to its label); it conflicts only if no overlapping
+                # node carries it.
+                neighbours = [
+                    value
+                    for other in scene.nodes
+                    if other.id != node.id and _bbox_overlap(other.bbox_px, row_box) >= 0.10
+                    for value in _text_values(other)
+                ]
+                if not _ocr_agrees(row_text, neighbours):
+                    reasons.append("OCR conflict near %s: %s" % (node.id, row_text))
             if node.render_strategy == "raster" and node.role != "decoration":
                 reasons.append("critical OCR overlaps raster node")
         if float(node.confidence) < 0.80:
@@ -255,6 +347,58 @@ def prepare_case(
             "ink_box": "style.box_is_ink=true expands the frame by the font ascent so glyphs sit on the measured ink",
             "kpi_layout": "kpi_card style.layout is label_on_top (default) or value_on_top; label_font_size_pt and value_font_size_pt override component defaults",
             "ribbon_shapes": "shape payload shape_type and process style.step_shape accept chevron, home_plate, pentagon, right_arrow",
+            "word_wrap": "text style.word_wrap (bool). When omitted the compiler decides: role=title never wraps; text that fits its box width stays on one line; otherwise it wraps only if bbox height holds at least one more line than the explicit \\n count. Set it explicitly to override (true for paragraphs, false for single-line labels/KPI numbers).",
+        },
+        "text_fidelity_contract": {
+            "rule": "copy every visible string character-for-character, including spaces and punctuation width",
+            "cjk_spacing": "do not insert spaces between Chinese/Japanese characters and Latin letters, digits, %, / or @ unless the image shows a real gap: write 核心工作回顾/季度复盘, 2026年度, 45篇, @鱼丸PPT, not 核心工作回顾 / 季度复盘, 2026 年度, 45 篇, @ 鱼丸 PPT",
+            "punctuation": "keep full-width punctuation (，。：（）“”) full-width and half-width (/ % : .) half-width as drawn",
+            "ocr": "high-confidence OCR lines are a cross-check; a mismatch with your text is reported at ingest, so re-read the image and keep whichever is right",
+        },
+        "paint_order_contract": {
+            "rule": "nodes paint back-to-front by (z_index, document order)",
+            "default_z_index": 0,
+            "guidance": "write background/plates first and content later, or set explicit z_index; ids are never used for ordering",
+        },
+        "self_check_contract": {
+            "when": "after scene.proposed.json validates and BEFORE pass 2",
+            "command": [
+                "pptrestore",
+                "preview",
+                str(root.resolve()),
+                str((root / "scene.proposed.json").resolve()),
+            ],
+            "outputs": "previews/<scene-hash>/side_by_side.png, diff.png (red = differs), regions/region_*.png crops and preview.json (metrics, worst_regions, missing_detail_regions, worst_nodes with source_mean/render_mean colours, text_size_hints with measured glyph height ratio, suggested_font_size_pt, line counts and ink offsets)",
+            "loop": "open the images, fix the largest visible differences in scene.proposed.json (missing plates/ribbons/decorations, wrong fills or gradients, misplaced or mis-sized boxes, text that wraps or shrinks differently), then preview again; stop when the remaining differences are anti-aliasing or font rendering, or after about 3 rounds",
+            "limits": "preview is not ingest or approval; it never changes the case state. Pixels show where the render differs, not why: re-read canonical.png before changing text",
+        },
+        "content_audit_contract": {
+            "artifact": str((root / "content_audit.proposed.json").resolve()),
+            "item_fields": {
+                "node_id": "id of a SceneSpec node",
+                "role": "same role as the node",
+                "kind": "same kind as the node",
+                "bbox_norm": "same bbox_norm as the node (tolerance 1.5)",
+                "content": "JSON OBJECT whose keys are the node's content fields (see content_fields_by_kind); never a bare string",
+                "confidence": "0..1, calibrated; < 0.80 routes to review",
+                "evidence_refs": "must include every evidence_ref of the node",
+                "critical": "true for every non-decoration, non-container, non-group node",
+                "status": "CONFIRMED or NEEDS_REVIEW",
+            },
+            "content_fields_by_kind": CONTENT_FIELDS_BY_KIND,
+            "example_item": {
+                "node_id": "node-kpi-1",
+                "role": "metric",
+                "kind": "kpi_card",
+                "bbox_norm": [600, 120, 90, 80],
+                "content": {"label": "用户环比增长", "value": "15.8%"},
+                "confidence": 0.95,
+                "evidence_refs": ["region-0003"],
+                "critical": True,
+                "status": "CONFIRMED",
+            },
+            "character_check": "compare character-by-character, including spaces between CJK and Latin/digits and full-width vs half-width punctuation; an inserted or missing space is a content error",
+            "conflicts": "write what the image actually shows in content; if it differs from the SceneSpec, set status NEEDS_REVIEW and explain in notes. Ingest reports the conflict; do not edit the scene from the audit pass",
         },
         "allowed_node_kinds": [
             "group",

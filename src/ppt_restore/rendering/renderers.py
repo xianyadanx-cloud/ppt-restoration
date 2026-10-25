@@ -294,11 +294,12 @@ def isolated_font_environment(output_dir):
         return env, {"mode": "inherited", "fontconfig_file": env.get("FONTCONFIG_FILE")}
     root = Path(output_dir).resolve()
     config = ElementTree.Element("fontconfig")
-    for directory in (
-        Path("/System/Library/Fonts"),
-        Path("/Library/Fonts"),
-        Path.home() / "Library/Fonts",
-    ):
+    font_dirs = [Path("/System/Library/Fonts"), Path("/Library/Fonts")]
+    try:
+        font_dirs.append(Path.home() / "Library/Fonts")
+    except (RuntimeError, KeyError):  # no HOME/USERPROFILE (e.g. cleared env)
+        pass
+    for directory in font_dirs:
         if directory.is_dir():
             ElementTree.SubElement(config, "dir").text = str(directory)
     cache = root / "font-cache"

@@ -11,6 +11,7 @@ COMMANDS = {
     "next": "next",
     "blueprint": "blueprint",
     "revise": "revise",
+    "preview": "preview",
     "review": "review",
     "doctor": "doctor",
     "render-probe": "render_probe",

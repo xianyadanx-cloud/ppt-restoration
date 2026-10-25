@@ -56,13 +56,18 @@ class EndToEndTests(unittest.TestCase):
             Image.new("RGB", (1440, 810), "white").save(source)
 
             def run(*args):
-                stream = io.StringIO()
+                # Commands print one JSON document on stdout.  stderr carries
+                # diagnostics (e.g. library DeprecationWarnings surfaced by the
+                # unittest runner) and must not be parsed as part of it.
+                stream, errors = io.StringIO(), io.StringIO()
                 with (
                     contextlib.redirect_stdout(stream),
-                    contextlib.redirect_stderr(stream),
+                    contextlib.redirect_stderr(errors),
                 ):
                     result = main([str(a) for a in args])
-                self.assertEqual(result, 0, stream.getvalue())
+                self.assertEqual(
+                    result, 0, stream.getvalue() + "\n" + errors.getvalue()
+                )
                 return json.loads(stream.getvalue())
 
             run("prepare", source, "--case-dir", case, "--ocr", "none")

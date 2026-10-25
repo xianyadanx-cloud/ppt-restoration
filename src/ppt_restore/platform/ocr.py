@@ -28,6 +28,38 @@ class TextDetection:
         return asdict(self)
 
 
+def parse_tesseract_tsv(
+    tsv: str, offset_x: int = 0, offset_y: int = 0, provider: str = "tesseract"
+) -> List[TextDetection]:
+    """Parse ``tesseract ... tsv`` output into word detections.
+
+    Tesseract TSV is not RFC-4180 CSV: a recognised word may be a lone ``"``
+    or start with a quote (for example Chinese copy such as ``"三年框架协议"``).
+    ``csv`` must therefore run with ``QUOTE_NONE``; otherwise one quote
+    swallows every following row (tabs and newlines included) into a single
+    "word" and the slide ends up with a wall of raw TSV text.
+    """
+
+    detections: List[TextDetection] = []
+    reader = csv.DictReader(io.StringIO(tsv), delimiter="\t", quoting=csv.QUOTE_NONE)
+    for row in reader:
+        text = (row.get("text") or "").strip()
+        try:
+            confidence = float(row.get("conf", "-1")) / 100.0
+        except (TypeError, ValueError):
+            confidence = -1.0
+        if not text or confidence < 0:
+            continue
+        try:
+            x = offset_x + int(row["left"])
+            y = offset_y + int(row["top"])
+            box = (x, y, int(row["width"]), int(row["height"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        detections.append(TextDetection(text, box, min(1.0, confidence), provider))
+    return detections
+
+
 class OcrProvider(abc.ABC):
     name = "unknown"
 
@@ -99,23 +131,9 @@ class TesseractOcrProvider(OcrProvider):
                         "Tesseract failed: %s"
                         % (proc.stderr or "unknown error").strip()
                     )
-                for row in csv.DictReader(io.StringIO(proc.stdout), delimiter="\t"):
-                    text = (row.get("text") or "").strip()
-                    try:
-                        confidence = float(row.get("conf", "-1")) / 100.0
-                    except ValueError:
-                        confidence = -1.0
-                    if not text or confidence < 0:
-                        continue
-                    x, y = left + int(row["left"]), top + int(row["top"])
-                    detections.append(
-                        TextDetection(
-                            text,
-                            (x, y, int(row["width"]), int(row["height"])),
-                            min(1.0, confidence),
-                            self.name,
-                        )
-                    )
+                detections.extend(
+                    parse_tesseract_tsv(proc.stdout, left, top, self.name)
+                )
         return detections
 
 
@@ -459,5 +477,6 @@ __all__ = [
     "auto_ocr_provider",
     "auto_ocr_providers",
     "merge_line_detections",
+    "parse_tesseract_tsv",
     "run_ocr",
 ]

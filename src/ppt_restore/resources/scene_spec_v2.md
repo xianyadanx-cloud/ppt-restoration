@@ -26,7 +26,13 @@ canonical/evidence hashes, the semantic `scene_sha256`, completed
 `pass_1_scene_extraction` and `pass_2_content_audit` entries, and one item for
 every critical content node. Each item records `node_id`, `role`, `kind`,
 `bbox_norm`, `content`, `confidence`, `evidence_refs`, `critical`, and a
-`CONFIRMED` or `NEEDS_REVIEW` status. Audit titles, body text, numbers,
+`CONFIRMED` or `NEEDS_REVIEW` status. `content` is a JSON **object** with the
+same content fields as the node payload, never a bare string: text and badge
+nodes use `{"text": "..."}`, `kpi_card` uses `{"label": "...", "value": "..."}`
+(plus `delta` when present), tables use `{"table_cells": [[...]]}`, charts use
+`{"categories": [...], "series": [...]}`, process nodes use `{"steps": [...]}`.
+`agent_request.json` → `content_audit_contract` lists the fields per kind and a
+full example item. Audit titles, body text, numbers,
 percentages, units, table cells, labels, and footnotes. A conflict or low
 confidence must remain `NEEDS_REVIEW`; do not silently resolve it.
 Run pass 2 in an independent review context. Do not copy pass-1 values or mark
@@ -50,7 +56,19 @@ historical defaults. Ribbon and quarter banners use shape types `chevron`,
 `home_plate`, `pentagon`, or `right_arrow`, or a `process` node with
 `style.step_shape` set to one of those. `style.shape_adjust` is a 0–1 preset
 adjustment (or a list) for the arrow depth. Theme shadows are not drawn unless
-`style.shadow` is set. `style.char_spacing_pt` sets run tracking in points.
+`style.shadow` is set.
+
+`style.word_wrap` (boolean) controls wrapping inside a text frame. When it is
+omitted the compiler decides: `role: "title"` never wraps; text that already
+fits the box width stays on one line; otherwise it wraps only when the box is
+tall enough for at least one more line than the explicit `\n` count. Measure
+a paragraph's full multi-line box (or set `word_wrap: true`) and keep
+single-line labels and KPI numbers in single-line-height boxes (or set
+`word_wrap: false`).
+
+Paint order is `(z_index, document order)`, back to front. `z_index` defaults
+to 0, so write background, plates and cards before the text and icons that sit
+on them, or give explicit `z_index` values. Node ids never affect ordering. `style.char_spacing_pt` sets run tracking in points.
 An image payload `mask: "circle"` keeps a circular alpha disk for icons that
 sit on top of native shapes.
 
@@ -69,7 +87,15 @@ visuals. Decompose layered plates, offset borders, freeform side faces,
 floating label tabs, shadows, glows, gradient stops, connectors, table row
 strips, progress tracks/fills/markers, and independently styled text runs into
 atomic nodes. Use `gradient_stops`, `gradient_angle`, `shadow`, and `glow`
-style fields when measured. A progress bar with a visible knob uses
+style fields when measured: `gradient_stops: [[0, "#7AAFF1"], [1, "#2F78BD"]]`
+(`{"position": 0, "color": "#…"}` objects are accepted too) and
+`gradient_angle` in degrees, 0 = left→right, 90 = top→bottom. Transparency
+is editable too: `fill_opacity` / `line_opacity` (0–1) on any shape, and
+per-stop alpha in gradients via `{"position": 0, "color": "#2F78BD",
+"opacity": 0}`, `#RRGGBBAA` or `rgba(r,g,b,a)`. Use a stop that fades to
+opacity 0 for ribbons, glows and bands whose ends dissolve into the
+background, and a translucent white fill for frosted-glass panels, instead of
+drawing them solid. A progress bar with a visible knob uses
 `payload.marker: true`. Do not wrap plain source content in an inferred card.
 
 Every critical node must have at least one matching `evidence_refs` id. Keep
@@ -91,3 +117,30 @@ After ingest, initialize the Block gate from the user-approved blueprint.
 Build only the active Block, render its slice diff and cumulative preview, and
 wait for explicit user confirmation before `block-approve`. Never produce a
 full-slide final build while any Block remains unapproved.
+
+## Self-check before pass 2
+
+After `scene.proposed.json` validates, run
+`pptrestore preview <case> <case>/scene.proposed.json`. It compiles and renders
+the proposal without ingesting it and writes `previews/<hash>/side_by_side.png`
+(source | render), `diff.png` (red where they differ), zoomed
+`regions/region_*.png` crops and `preview.json` (metrics, worst grid cells with
+the nodes painted there, cells whose source detail is missing from the render,
+per-node source/render mean colours, and `text_size_hints`: measured glyph height ratio, suggested `font_size_pt`, line counts and ink offset per text node). Look at the images, fix the biggest
+visible gaps in the scene (missing plates, ribbons and decorations, wrong fills
+or gradients, misplaced boxes, text that wraps or shrinks differently) and
+preview again, about three rounds. Preview never changes case state, and pixels
+only show where the render differs: re-read canonical.png before changing copy.
+
+## Text fidelity
+
+Copy visible strings exactly. Chinese slides rarely put spaces between CJK
+characters and Latin letters or digits: write `2026年度`, `45篇`,
+`核心工作回顾/季度复盘`, `@鱼丸PPT` unless the image shows a real gap. Keep
+full-width punctuation full-width. The pass-2 audit compares character by
+character, spaces included.
+
+Ingest flags every space between a CJK character and a Latin letter, digit or
+`@#%&+/` as needing review. When the image really shows that gap (for example
+`针对 TOP30 的客户`), keep it and set `payload.verbatim_spaces: true` on that
+node.
