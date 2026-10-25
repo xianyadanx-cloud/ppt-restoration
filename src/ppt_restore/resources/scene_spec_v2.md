@@ -120,7 +120,7 @@ the proposal without ingesting it and writes `previews/<hash>/side_by_side.png`
 (source | render), `diff.png` (red where they differ), zoomed
 `regions/region_*.png` crops and `preview.json` (metrics, worst grid cells with
 the nodes painted there, cells whose source detail is missing from the render,
-and per-node source/render mean colours). Look at the images, fix the biggest
+per-node source/render mean colours, and `text_size_hints`: measured glyph height ratio, suggested `font_size_pt`, line counts and ink offset per text node). Look at the images, fix the biggest
 visible gaps in the scene (missing plates, ribbons and decorations, wrong fills
 or gradients, misplaced boxes, text that wraps or shrinks differently) and
 preview again, about three rounds. Preview never changes case state, and pixels

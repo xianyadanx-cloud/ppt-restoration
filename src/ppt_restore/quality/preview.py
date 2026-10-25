@@ -9,6 +9,7 @@ output next to canonical.png and fix the largest discrepancies.  Pixels say
 
 import dataclasses
 import json
+import math
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
@@ -68,6 +69,93 @@ def _labelled_row(images, labels):
         draw.text((x + 6, 6), label, fill="black")
         x += image.width + 8
     return canvas
+
+
+def _ink_profile(image):
+    """Ink bbox and median text-line band height of a crop (detail mask rows)."""
+    # Ink = pixels far from the crop's dominant (median) luminance.  A
+    # high-pass mask would widen every stroke by the blur radius.
+    gray = image.convert("L")
+    width, height = gray.size
+    values = M._pixels(gray)
+    background = sorted(values)[len(values) // 2]
+    data = [1 if abs(v - background) > 48 else 0 for v in values]
+    rows = [sum(1 for x in range(width) if data[y * width + x]) for y in range(height)]
+    cols = [sum(1 for y in range(height) if data[y * width + x]) for x in range(width)]
+    threshold = max(1, int(width * 0.01))
+    bands, start = [], None
+    for y, count in enumerate(rows + [0]):
+        if count >= threshold and start is None:
+            start = y
+        elif count < threshold and start is not None:
+            if y - start >= 3:
+                bands.append((start, y))
+            start = None
+    xs = [x for x, c in enumerate(cols) if c]
+    if not bands or not xs:
+        return None
+    heights = sorted(b - a for a, b in bands)
+    return {
+        "bands": len(bands),
+        "line_height_px": heights[len(heights) // 2],
+        "ink_box": [xs[0], bands[0][0], xs[-1] + 1, bands[-1][1]],
+    }
+
+
+def text_size_hints(scene, source, render):
+    """Compare glyph line height and ink placement of text nodes, source vs render."""
+    hints = []
+    for node in scene.nodes:
+        if node.kind != "text":
+            continue
+        x, y, w, h = node.bbox_px
+        pad = 3
+        box = (
+            max(0, int(x) - pad),
+            max(0, int(y) - pad),
+            min(source.width, int(x + w) + pad),
+            min(source.height, int(y + h) + pad),
+        )
+        if box[2] - box[0] < 6 or box[3] - box[1] < 6:
+            continue
+        ref, got = _ink_profile(source.crop(box)), _ink_profile(render.crop(box))
+        if not ref or not got:
+            continue
+        ratio = ref["line_height_px"] / float(max(1, got["line_height_px"]))
+        dx = ref["ink_box"][0] - got["ink_box"][0]
+        dy = ref["ink_box"][1] - got["ink_box"][1]
+        width_ratio = (ref["ink_box"][2] - ref["ink_box"][0]) / float(max(1, got["ink_box"][2] - got["ink_box"][0]))
+        size = node.style.get("font_size_pt") if isinstance(node.style, dict) else None
+        same_lines = ref["bands"] == got["bands"]
+        reliable = same_lines and 0.6 <= ratio <= 1.7
+        hint = {
+            "node_id": node.id,
+            "source_lines": ref["bands"],
+            "render_lines": got["bands"],
+            "glyph_height_ratio": round(ratio, 3) if reliable else None,
+            "ink_width_ratio": round(width_ratio, 3) if same_lines else None,
+            "ink_offset_px": [dx, dy],
+        }
+        if size and reliable:
+            hint["font_size_pt"] = size
+            hint["suggested_font_size_pt"] = round(float(size) * ratio * 2) / 2.0
+        problems = []
+        if reliable and abs(ratio - 1) >= 0.08:
+            problems.append("glyphs %s than source" % ("larger" if ratio < 1 else "smaller"))
+        if not same_lines:
+            problems.append(
+                "source shows %d text line(s) here, render %d: check word_wrap, box width and font size (neighbouring ink can also inflate this count)"
+                % (ref["bands"], got["bands"])
+            )
+        if abs(dx) > 6 or abs(dy) > 6:
+            problems.append("ink shifted (move bbox by dx=%d, dy=%d px)" % (dx, dy))
+        if same_lines and abs(width_ratio - 1) >= 0.10:
+            problems.append("line length differs (ink width ratio %.2f): check spacing, font size or char_spacing_pt" % width_ratio)
+        if problems:
+            hint["problems"] = problems
+            hints.append(hint)
+    hints.sort(key=lambda h: -abs(math.log(h["glyph_height_ratio"] or 1.0)) - 0.15 * (h["source_lines"] != h["render_lines"]))
+    return hints
 
 
 def node_regions(scene, source, render):
@@ -291,10 +379,12 @@ def preview_scene(case_dir, proposed_path, output_dir=None, renderer="libreoffic
             "worst_regions": worst[:12],
             "missing_detail_regions": missing[:12],
             "worst_nodes": nodes[:20],
+            "text_size_hints": text_size_hints(scene, source, render)[:25],
             "how_to_use": [
                 "Open side_by_side.png and diff.png (red = differs) and every regions/region_*.png crop.",
                 "worst_regions: 1/16 x 1/9 grid cells with the largest colour/geometry difference (crops include one cell of context). Compare source_mean/render_mean of the nodes there; fix fills, gradients, plates, bbox and paint order.",
                 "missing_detail_regions: the source has text/icon/edge detail the render lacks, usually missing nodes (decorations, icons, ribbons, separators, small labels) or text that wrapped/shrank differently.",
+                "text_size_hints: per text node, measured glyph line height source/render (glyph_height_ratio < 1 means your text is too big; suggested_font_size_pt scales it), line count, ink offset and line length. Fix font_size_pt, bbox, word_wrap and spacing from these measurements.",
                 "Edit scene.proposed.json, then run preview again. Pixels show where, not why: re-read canonical.png before changing content. Never copy pixel colours blindly into text.",
             ],
         }

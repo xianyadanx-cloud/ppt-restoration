@@ -77,6 +77,26 @@ class PreviewTests(unittest.TestCase):
             after = sorted(p.name for p in case.iterdir())
             self.assertEqual(sorted(set(after) - set(before)), ["previews"])
 
+    def test_text_size_hint_measures_glyph_height(self):
+        from ppt_restore.quality.preview import text_size_hints
+
+        def slide(band):
+            image = Image.new("RGB", (1440, 810), "white")
+            draw = ImageDraw.Draw(image)
+            for x in range(110, 500, 14):  # glyph-like strokes of one text line
+                draw.rectangle([x, 120, x + 6, 120 + band], fill="black")
+            return image
+
+        node = SceneNode("body", "text", "body", (100, 110, 420, 40),
+                         payload={"text": "x"}, style={"font_size_pt": 12})
+        scene = SceneSpecV2("2.0", "a" * 64, "b" * 64, {"width_px": 1440, "height_px": 810}, (node,))
+        hints = text_size_hints(scene, slide(16), slide(12))
+        self.assertEqual(hints[0]["node_id"], "body")
+        self.assertAlmostEqual(hints[0]["glyph_height_ratio"], 17 / 13.0, places=3)
+        self.assertEqual(hints[0]["suggested_font_size_pt"], 15.5)
+        self.assertIn("glyphs smaller than source", hints[0]["problems"])
+        self.assertEqual(text_size_hints(scene, slide(12), slide(12)), [])
+
     def test_cli_is_registered(self):
         with contextlib.redirect_stdout(io.StringIO()) as out, self.assertRaises(SystemExit):
             main(["preview", "--help"])

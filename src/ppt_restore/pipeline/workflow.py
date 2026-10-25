@@ -280,7 +280,7 @@ def prepare_case(
                 str(root.resolve()),
                 str((root / "scene.proposed.json").resolve()),
             ],
-            "outputs": "previews/<scene-hash>/side_by_side.png, diff.png (red = differs), regions/region_*.png crops and preview.json (metrics, worst_regions, missing_detail_regions, worst_nodes with source_mean/render_mean colours)",
+            "outputs": "previews/<scene-hash>/side_by_side.png, diff.png (red = differs), regions/region_*.png crops and preview.json (metrics, worst_regions, missing_detail_regions, worst_nodes with source_mean/render_mean colours, text_size_hints with measured glyph height ratio, suggested_font_size_pt, line counts and ink offsets)",
             "loop": "open the images, fix the largest visible differences in scene.proposed.json (missing plates/ribbons/decorations, wrong fills or gradients, misplaced or mis-sized boxes, text that wraps or shrinks differently), then preview again; stop when the remaining differences are anti-aliasing or font rendering, or after about 3 rounds",
             "limits": "preview is not ingest or approval; it never changes the case state. Pixels show where the render differs, not why: re-read canonical.png before changing text",
         },
